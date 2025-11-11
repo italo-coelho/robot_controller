@@ -70,7 +70,20 @@ Popup {
         NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 160 }
         NumberAnimation { property: "scale"; from: 1; to: 0.96; duration: 160; easing.type: Easing.InCubic }
     }
-
+    
+    Connections {
+        target: PositionController
+        function onCurrentPoseLoaded(pose) {
+            textInput.text = actualPositionName
+            poseX.value = pose.x.toFixed(2)
+            poseY.value = pose.y.toFixed(2)
+            poseZ.value = pose.z.toFixed(2)
+            poseRX.value = pose.rx.toFixed(2)
+            poseRY.value = pose.ry.toFixed(2)
+            poseRZ.value = pose.rz.toFixed(2)
+        }
+    }
+    
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 14
