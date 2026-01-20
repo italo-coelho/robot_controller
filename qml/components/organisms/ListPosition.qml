@@ -20,18 +20,35 @@ Rectangle {
         function onPosesLoaded(poses) {
             savedPositionsModel.clear()
             for (let pose of poses) {
-                savedPositionsModel.append({
-                    id: pose.id,
-                    name: pose.name,
-                    poses: {
-                        posX: pose.x,
-                        posY: pose.y,
-                        posZ: pose.z,
-                        posRX: pose.rx,
-                        posRY: pose.ry,
-                        posRZ: pose.rz
-                    }
-                })
+                if (pose.type === "cartesian") {
+                    savedPositionsModel.append({
+                        id: pose.id,
+                        name: pose.name,
+                        type: "cartesian",
+                        poses: {
+                            posX: pose.x,
+                            posY: pose.y,
+                            posZ: pose.z,
+                            posRX: pose.rx,
+                            posRY: pose.ry,
+                            posRZ: pose.rz
+                        }
+                    })
+                } else if (pose.type === "joint") {
+                    savedPositionsModel.append({
+                        id: pose.id,
+                        name: pose.name,
+                        type: "joint",
+                        poses: {
+                            j1: pose.j1,
+                            j2: pose.j2,
+                            j3: pose.j3,
+                            j4: pose.j4,
+                            j5: pose.j5,
+                            j6: pose.j6
+                        }
+                    })
+                }
             }
         }
     }
@@ -39,15 +56,27 @@ Rectangle {
     PositionPopup {
         id: addPositionPopup
         onMainButtonClicked: {
-            PositionController.save_pose(
-                positionName,
-                parseFloat(poseXValue),
-                parseFloat(poseYValue),
-                parseFloat(poseZValue),
-                parseFloat(poseRXValue),
-                parseFloat(poseRYValue),
-                parseFloat(poseRZValue)
-            )
+            if (isJointMode) {
+                PositionController.save_joint_pose(
+                    positionName,
+                    parseFloat(joint1Value),
+                    parseFloat(joint2Value),
+                    parseFloat(joint3Value),
+                    parseFloat(joint4Value),
+                    parseFloat(joint5Value),
+                    parseFloat(joint6Value)
+                )
+            } else {
+                PositionController.save_pose(
+                    positionName,
+                    parseFloat(poseXValue),
+                    parseFloat(poseYValue),
+                    parseFloat(poseZValue),
+                    parseFloat(poseRXValue),
+                    parseFloat(poseRYValue),
+                    parseFloat(poseRZValue)
+                )
+            }
             PositionController.load_poses()
         }
     }
@@ -56,16 +85,29 @@ Rectangle {
         id: editPositionPopup
         mainButtonText: "Editar"
         onMainButtonClicked: {
-            PositionController.update_pose(
-                actualPositionName,
-                positionName,
-                parseFloat(poseXValue),
-                parseFloat(poseYValue),
-                parseFloat(poseZValue),
-                parseFloat(poseRXValue),
-                parseFloat(poseRYValue),
-                parseFloat(poseRZValue)
-            )
+            if (isJointMode) {
+                PositionController.update_joint_pose(
+                    actualPositionName,
+                    positionName,
+                    parseFloat(joint1Value),
+                    parseFloat(joint2Value),
+                    parseFloat(joint3Value),
+                    parseFloat(joint4Value),
+                    parseFloat(joint5Value),
+                    parseFloat(joint6Value)
+                )
+            } else {
+                PositionController.update_pose(
+                    actualPositionName,
+                    positionName,
+                    parseFloat(poseXValue),
+                    parseFloat(poseYValue),
+                    parseFloat(poseZValue),
+                    parseFloat(poseRXValue),
+                    parseFloat(poseRYValue),
+                    parseFloat(poseRZValue)
+                )
+            }
             PositionController.load_poses()
         }
     }
@@ -118,26 +160,40 @@ Rectangle {
             delegate: PositionItem {
                 nameText: name
                 poses: model.poses
+                poseType: model.type || "cartesian"
 
                 onViewClicked: (itemId) => {
                     console.log("Ver posição", name)
                 }
 
                 onEditClicked: (itemId) => {
-                    editPositionPopup.openWith(
-                        itemId,
-                        name,
-                        poses.posX,
-                        poses.posY,
-                        poses.posZ,
-                        poses.posRX,
-                        poses.posRY,
-                        poses.posRZ
-                    )
+                    if (model.type === "joint") {
+                        editPositionPopup.openWithJoints(
+                            itemId,
+                            name,
+                            poses.j1,
+                            poses.j2,
+                            poses.j3,
+                            poses.j4,
+                            poses.j5,
+                            poses.j6
+                        )
+                    } else {
+                        editPositionPopup.openWith(
+                            itemId,
+                            name,
+                            poses.posX,
+                            poses.posY,
+                            poses.posZ,
+                            poses.posRX,
+                            poses.posRY,
+                            poses.posRZ
+                        )
+                    }
                 }
 
                 onDeleteClicked: (itemId) => {
-                    PositionController.delete_pose(name)
+                    PositionController.delete_pose_by_type(name, model.type || "cartesian")
                 }
             }
         }
@@ -146,8 +202,7 @@ Rectangle {
             text: "Deletar Lista"
             style: "danger"
             onClicked: {
-               PositionController.delete_all_poses()
-               PositionController.load_poses()
+                PositionController.delete_all_poses()
             }
         }
     }

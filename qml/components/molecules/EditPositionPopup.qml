@@ -11,10 +11,12 @@ Popup {
     modal: true
     focus: true
     width: 600
-    height: 650
+    height: 700
     anchors.centerIn: parent
 
     closePolicy: Popup.CloseOnPressOutside
+    
+    property bool isJointMode: false
     
     background: Rectangle {
         width: toast.width
@@ -78,6 +80,33 @@ Popup {
             }
         }
 
+        // Toggle entre Cartesiano e Juntas
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignHCenter
+            spacing: 10
+
+            Label {
+                text: "Cartesiano"
+                color: toast.isJointMode ? '#c71f1f' : "#525252"
+                font.bold: !toast.isJointMode
+            }
+
+            Switch {
+                id: modeSwitch
+                checked: toast.isJointMode
+                onCheckedChanged: {
+                    toast.isJointMode = checked
+                }
+            }
+
+            Label {
+                text: "Juntas"
+                color: toast.isJointMode ? '#da2222' : "#b6b3b3"
+                font.bold: toast.isJointMode
+            }
+        }
+
         Rectangle {
             height: 1
             color: '#b8b8b8'
@@ -85,14 +114,16 @@ Popup {
             Layout.margins: 1
         }
 
+        // Grid para posição cartesiana
         GridLayout {
-            id: grid
+            id: cartesianGrid
             columns: 3
             rowSpacing: 10
             columnSpacing: 10
             Layout.leftMargin: 20
             Layout.rightMargin: 20
             Layout.alignment: Qt.AlignHCenter
+            visible: !toast.isJointMode
 
             PoseInput { id: poseX; nameInput: "Pose X" }
             PoseInput { id: poseY; nameInput: "Pose Y" }
@@ -100,6 +131,25 @@ Popup {
             PoseInput { id: poseRX; nameInput: "Pose RX" }
             PoseInput { id: poseRY; nameInput: "Pose RY" }
             PoseInput { id: poseRZ; nameInput: "Pose RZ" }
+        }
+
+        // Grid para posição das juntas
+        GridLayout {
+            id: jointGrid
+            columns: 3
+            rowSpacing: 10
+            columnSpacing: 10
+            Layout.leftMargin: 20
+            Layout.rightMargin: 20
+            Layout.alignment: Qt.AlignHCenter
+            visible: toast.isJointMode
+
+            PoseInput { id: joint1; nameInput: "J1" }
+            PoseInput { id: joint2; nameInput: "J2" }
+            PoseInput { id: joint3; nameInput: "J3" }
+            PoseInput { id: joint4; nameInput: "J4" }
+            PoseInput { id: joint5; nameInput: "J5" }
+            PoseInput { id: joint6; nameInput: "J6" }
         }
 
         RowLayout{
@@ -110,14 +160,44 @@ Popup {
 
             CommonBtn {
                 text: "Posição Atual"
-                style: "info"  
+                style: "info"
+                onClicked: {
+                    if (toast.isJointMode) {
+                        PositionController.get_current_joint_pose()
+                    } else {
+                        PositionController.get_current_pose()
+                    }
+                }
             }
 
             Item{ Layout.fillWidth: true }
 
             CommonBtn {
                 text: "Mover"
-                style: "secondary"  
+                style: "secondary"
+                onClicked: {
+                    if (toast.isJointMode) {
+                        PositionController.move_joints(
+                            textInput.text,
+                            parseFloat(joint1.value),
+                            parseFloat(joint2.value),
+                            parseFloat(joint3.value),
+                            parseFloat(joint4.value),
+                            parseFloat(joint5.value),
+                            parseFloat(joint6.value)
+                        )
+                    } else {
+                        PositionController.move_j(
+                            textInput.text,
+                            parseFloat(poseX.value),
+                            parseFloat(poseY.value),
+                            parseFloat(poseZ.value),
+                            parseFloat(poseRX.value),
+                            parseFloat(poseRY.value),
+                            parseFloat(poseRZ.value)
+                        )
+                    }
+                }
             }
 
         }
@@ -138,7 +218,11 @@ Popup {
             CommonBtn {
                 text: "Cancelar"
                 style: "danger"
-                onClicked: toast.close()
+                onClicked: {
+                    textInput.text = ""
+                    toast.isJointMode = false
+                    toast.close()
+                }
             }
 
             CommonBtn { 
@@ -147,19 +231,58 @@ Popup {
 
                 onClicked: {
                     if (textInput.text.length === 0) return
-                    PositionController.save_pose(
-                        textInput.text,
-                        parseFloat(poseX.value),
-                        parseFloat(poseY.value),
-                        parseFloat(poseZ.value),
-                        parseFloat(poseRX.value),
-                        parseFloat(poseRY.value),
-                        parseFloat(poseRZ.value)
-                    )
+                    
+                    if (toast.isJointMode) {
+                        PositionController.save_joint_pose(
+                            textInput.text,
+                            parseFloat(joint1.value),
+                            parseFloat(joint2.value),
+                            parseFloat(joint3.value),
+                            parseFloat(joint4.value),
+                            parseFloat(joint5.value),
+                            parseFloat(joint6.value)
+                        )
+                    } else {
+                        PositionController.save_pose(
+                            textInput.text,
+                            parseFloat(poseX.value),
+                            parseFloat(poseY.value),
+                            parseFloat(poseZ.value),
+                            parseFloat(poseRX.value),
+                            parseFloat(poseRY.value),
+                            parseFloat(poseRZ.value)
+                        )
+                    }
+                    
                     textInput.text = ""
+                    toast.isJointMode = false
                     PositionController.load_poses()
                     toast.close()
                 }
+            }
+        }
+    }
+
+    Connections {
+        target: PositionController
+        function onCurrentPoseLoaded(pose) {
+            if (!toast.isJointMode) {
+                poseX.value = pose.x.toFixed(2)
+                poseY.value = pose.y.toFixed(2)
+                poseZ.value = pose.z.toFixed(2)
+                poseRX.value = pose.rx.toFixed(2)
+                poseRY.value = pose.ry.toFixed(2)
+                poseRZ.value = pose.rz.toFixed(2)
+            }
+        }
+        function onCurrentJointPoseLoaded(pose) {
+            if (toast.isJointMode) {
+                joint1.value = pose.j1.toFixed(2)
+                joint2.value = pose.j2.toFixed(2)
+                joint3.value = pose.j3.toFixed(2)
+                joint4.value = pose.j4.toFixed(2)
+                joint5.value = pose.j5.toFixed(2)
+                joint6.value = pose.j6.toFixed(2)
             }
         }
     }

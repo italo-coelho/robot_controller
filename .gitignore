@@ -8,7 +8,9 @@ __pycache__/
 dist/
 build/
 env/
-.venv/
+venv/
+fairino-python-sdk-main/
+__pypackages__/
 pip-wheel-metadata/
 *.qmlc
 *.jsc
