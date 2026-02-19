@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS cartesian_pose (
+CREATE TABLE IF NOT EXISTS tcp (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   name       TEXT NOT NULL,
   x          REAL NOT NULL,

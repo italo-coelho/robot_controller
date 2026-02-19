@@ -148,6 +148,27 @@ Popup {
                 onClicked: offsetPopup.close()
             }
             CommonBtn {
+                text: "Resetar"
+                style: "primary"
+                onClicked: {
+                    if (offsetPopup.isJointMode) {
+                        jointDx.value  = "0.0"
+                        jointDy.value  = "0.0"
+                        jointDz.value  = "0.0"
+                        jointDrx.value = "0.0"
+                        jointDry.value = "0.0"
+                        jointDrz.value = "0.0"
+                    } else {
+                        tcpDx.value  = "0.0"
+                        tcpDy.value  = "0.0"
+                        tcpDz.value  = "0.0"
+                        tcpDrx.value = "0.0"
+                        tcpDry.value = "0.0"
+                        tcpDrz.value = "0.0"
+                    }
+                }
+            }
+            CommonBtn {
                 text: "Salvar"
                 style: "success"
                 onClicked: {

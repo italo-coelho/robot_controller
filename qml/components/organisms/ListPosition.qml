@@ -11,17 +11,30 @@ Rectangle {
     radius: 30
     color: "transparent"
 
+    // Master list – all loaded poses, never filtered
+    property var allPoses: []
+
     ListModel { id: savedPositionsModel }
+
+    function applyFilter(text) {
+        savedPositionsModel.clear()
+        let lower = text.toLowerCase().trim()
+        for (let pose of allPoses) {
+            if (lower === "" || pose.name.toLowerCase().indexOf(lower) !== -1) {
+                savedPositionsModel.append(pose)
+            }
+        }
+    }
 
     Component.onCompleted: PositionController.load_poses()
 
     Connections {
         target: PositionController
         function onPosesLoaded(poses) {
-            savedPositionsModel.clear()
+            allPoses = []
             for (let pose of poses) {
                 if (pose.type === "cartesian") {
-                    savedPositionsModel.append({
+                    allPoses.push({
                         id: pose.id,
                         name: pose.name,
                         type: "cartesian",
@@ -41,7 +54,7 @@ Rectangle {
                         }
                     })
                 } else if (pose.type === "joint") {
-                    savedPositionsModel.append({
+                    allPoses.push({
                         id: pose.id,
                         name: pose.name,
                         type: "joint",
@@ -62,6 +75,7 @@ Rectangle {
                     })
                 }
             }
+            applyFilter(positionInputBar.currentText)
         }
     }
 
@@ -169,6 +183,10 @@ Rectangle {
                 id: positionInputBar
                 buttonName: "Pesquisar"
                 placeholder: "Insira o nome da posição"
+                // Filter as you type
+                onTextChanged: applyFilter(currentText)
+                // Filter on button click too
+                onConnectClicked: (text) => applyFilter(text)
             }
 
             CommonBtn {
@@ -202,8 +220,28 @@ Rectangle {
                 poses: model.poses
                 poseType: model.type || "cartesian"
 
-                onViewClicked: (itemId) => {
-                    console.log("Ver posição", name)
+                onMoveClicked: (poseName, poseData, type) => {
+                    if (type === "joint") {
+                        PositionController.move_joints(
+                            poseName,
+                            parseFloat(poseData.j1),
+                            parseFloat(poseData.j2),
+                            parseFloat(poseData.j3),
+                            parseFloat(poseData.j4),
+                            parseFloat(poseData.j5),
+                            parseFloat(poseData.j6)
+                        )
+                    } else {
+                        PositionController.move_j(
+                            poseName,
+                            parseFloat(poseData.posX),
+                            parseFloat(poseData.posY),
+                            parseFloat(poseData.posZ),
+                            parseFloat(poseData.posRX),
+                            parseFloat(poseData.posRY),
+                            parseFloat(poseData.posRZ)
+                        )
+                    }
                 }
 
                 onEditClicked: (itemId) => {

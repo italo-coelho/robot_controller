@@ -16,85 +16,114 @@ Rectangle {
     property var poses
     property string poseType: "cartesian"
 
-    signal viewClicked(int poseId)
+    signal moveClicked(string poseName, var poses, string poseType)
     signal editClicked(int poseId)
     signal deleteClicked(int poseId)
     signal offsetClicked(int poseId)
 
-    RowLayout {
+    ColumnLayout {
         id: content
         anchors.fill: parent
         anchors.margins: 12
-        spacing: 10
+        spacing: 8
 
-        Title { titleText: nameText; font.pixelSize: 16; font.bold: false; color: '#8f8f8f'}
-        
-        // Tag indicando o tipo
-        Tag { 
-            text: poseType === "joint" ? "Juntas" : "Cartesiano"
-            backgroundColor: poseType === "joint" ? '#ffd6d6' : '#d6e3ff'
-        }
-        
-        Item{ Layout.fillWidth: true }
-        
-        // Mostrar valores dependendo do tipo
-        Repeater {
-            model: poseType === "joint" ? [
-                { label: "J1", value: poses ? poses.j1 : 0, color: '#d6ffd7' },
-                { label: "J2", value: poses ? poses.j2 : 0, color: '#d6ffd7' },
-                { label: "J3", value: poses ? poses.j3 : 0, color: '#d6ffd7' },
-                { label: "J4", value: poses ? poses.j4 : 0, color: '#d6ffd7' },
-                { label: "J5", value: poses ? poses.j5 : 0, color: '#d6ffd7' },
-                { label: "J6", value: poses ? poses.j6 : 0, color: '#d6ffd7' },
-                { label: "DX", value: poses ? poses.dx : 0, color: '#d6e3ff'},
-                { label: "DY", value: poses ? poses.dy : 0, color: '#d6e3ff'},
-                { label: "DZ", value: poses ? poses.dz : 0, color: '#d6e3ff'},
-                { label: "DRX", value: poses ? poses.drx : 0, color: '#d6e3ff'},
-                { label: "DRY", value: poses ? poses.dry : 0, color: '#d6e3ff'},
-                { label: "DRZ", value: poses ? poses.drz : 0, color: '#d6e3ff'},
-            ] : [
-                { label: "X", value: poses ? poses.posX : 0, color: '#d6ffd7' },
-                { label: "Y", value: poses ? poses.posY : 0, color: '#d6ffd7' },
-                { label: "Z", value: poses ? poses.posZ : 0, color: '#d6ffd7' },
-                { label: "RX", value: poses ? poses.posRX : 0, color: '#d6ffd7' },
-                { label: "RY", value: poses ? poses.posRY : 0, color: '#d6ffd7' },
-                { label: "RZ", value: poses ? poses.posRZ : 0, color: '#d6ffd7' },
-
-                { label: "DX", value: poses ? poses.posDX : 0, color: '#d6e3ff' },
-                { label: "DY", value: poses ? poses.posDY : 0, color: '#d6e3ff' },
-                { label: "DZ", value: poses ? poses.posDZ : 0, color: '#d6e3ff' },
-                { label: "DRX", value: poses ? poses.posDRX : 0, color: '#d6e3ff' },
-                { label: "DRY", value: poses ? poses.posDRY : 0, color: '#d6e3ff' },
-                { label: "DRZ", value: poses ? poses.posDRZ : 0, color: '#d6e3ff' },
-            ]
-            Tag { 
-                text: `${modelData.label}: ${Number(modelData.value || 0).toFixed(2)}`
-                backgroundColor: modelData.color || undefined
-            }
-        }  
-
-
+        // ── Row 1: Name · Type tag · spacer · Action buttons ──────────────
         RowLayout {
+            Layout.fillWidth: true
+            spacing: 10
+
+            Title {
+                titleText: nameText
+                font.pixelSize: 16
+                font.bold: false
+                color: "#8f8f8f"
+            }
+
+            Tag {
+                text: poseType === "joint" ? "Juntas" : "Cartesiano"
+                backgroundColor: poseType === "joint" ? "#ffd6d6" : "#d6e3ff"
+            }
+
+            Item { Layout.fillWidth: true }
+
+            // Buttons pinned to the right — always visible
+            RowLayout {
+                spacing: 6
+
+                IconBtn {
+                    iconSource: "../../../assets/icons/industrial-robot.png"
+                    onClicked: positionItem.moveClicked(nameText, poses, poseType)
+                }
+                IconBtn {
+                    iconSource: "../../../assets/icons/edit.png"
+                    onClicked: positionItem.editClicked(poseId)
+                }
+                IconBtn {
+                    iconSource: "../../../assets/icons/settings.png"
+                    onClicked: positionItem.offsetClicked(poseId)
+                }
+                IconBtn {
+                    iconSource: "../../../assets/icons/trash-can.png"
+                    onClicked: positionItem.deleteClicked(poseId)
+                }
+            }
+        }
+
+        // ── Row 2: Main values (X/Y/Z/RX/RY/RZ or J1–J6) ─────────────────
+        Flow {
+            Layout.fillWidth: true
             spacing: 6
 
-            IconBtn {
-                iconSource: "../../../assets/icons/industrial-robot.png"
-                onClicked: positionItem.viewClicked(poseId)
-            }
+            Repeater {
+                model: poseType === "joint" ? [
+                    { label: "J1", value: poses ? poses.j1 : 0, color: "#d6ffd7" },
+                    { label: "J2", value: poses ? poses.j2 : 0, color: "#d6ffd7" },
+                    { label: "J3", value: poses ? poses.j3 : 0, color: "#d6ffd7" },
+                    { label: "J4", value: poses ? poses.j4 : 0, color: "#d6ffd7" },
+                    { label: "J5", value: poses ? poses.j5 : 0, color: "#d6ffd7" },
+                    { label: "J6", value: poses ? poses.j6 : 0, color: "#d6ffd7" },
+                ] : [
+                    { label: "X",  value: poses ? poses.posX  : 0, color: "#d6ffd7" },
+                    { label: "Y",  value: poses ? poses.posY  : 0, color: "#d6ffd7" },
+                    { label: "Z",  value: poses ? poses.posZ  : 0, color: "#d6ffd7" },
+                    { label: "RX", value: poses ? poses.posRX : 0, color: "#d6ffd7" },
+                    { label: "RY", value: poses ? poses.posRY : 0, color: "#d6ffd7" },
+                    { label: "RZ", value: poses ? poses.posRZ : 0, color: "#d6ffd7" },
+                ]
 
-            IconBtn {
-                iconSource: "../../../assets/icons/edit.png"
-                onClicked: positionItem.editClicked(poseId)
+                Tag {
+                    text: `${modelData.label}: ${Number(modelData.value || 0).toFixed(2)}`
+                    backgroundColor: modelData.color
+                }
             }
+        }
 
-            IconBtn {
-                iconSource: "../../../assets/icons/settings.png"
-                onClicked: positionItem.offsetClicked(poseId)
-            }
+        // ── Row 3: Offset values (DX/DY/DZ/DRX/DRY/DRZ) ──────────────────
+        Flow {
+            Layout.fillWidth: true
+            spacing: 6
 
-            IconBtn {
-                iconSource: "../../../assets/icons/trash-can.png"
-                onClicked: positionItem.deleteClicked(poseId)
+            Repeater {
+                model: poseType === "joint" ? [
+                    { label: "DX",  value: poses ? poses.dx  : 0, color: "#d6e3ff" },
+                    { label: "DY",  value: poses ? poses.dy  : 0, color: "#d6e3ff" },
+                    { label: "DZ",  value: poses ? poses.dz  : 0, color: "#d6e3ff" },
+                    { label: "DRX", value: poses ? poses.drx : 0, color: "#d6e3ff" },
+                    { label: "DRY", value: poses ? poses.dry : 0, color: "#d6e3ff" },
+                    { label: "DRZ", value: poses ? poses.drz : 0, color: "#d6e3ff" },
+                ] : [
+                    { label: "DX",  value: poses ? poses.posDX  : 0, color: "#d6e3ff" },
+                    { label: "DY",  value: poses ? poses.posDY  : 0, color: "#d6e3ff" },
+                    { label: "DZ",  value: poses ? poses.posDZ  : 0, color: "#d6e3ff" },
+                    { label: "DRX", value: poses ? poses.posDRX : 0, color: "#d6e3ff" },
+                    { label: "DRY", value: poses ? poses.posDRY : 0, color: "#d6e3ff" },
+                    { label: "DRZ", value: poses ? poses.posDRZ : 0, color: "#d6e3ff" },
+                ]
+
+                Tag {
+                    text: `${modelData.label}: ${Number(modelData.value || 0).toFixed(2)}`
+                    backgroundColor: modelData.color
+                }
             }
         }
     }

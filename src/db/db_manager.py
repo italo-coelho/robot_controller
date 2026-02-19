@@ -94,13 +94,9 @@ class DB_Manager:
         
         # Verificação especial para migration de adicionar coluna
         if "ADD COLUMN" in script.upper() and "config" in script:
-            table_name = "cartesian_pose"
             column_name = "config"
-            if self._column_exists(table_name, column_name) or self._column_exists("tcp", column_name):
+            if self._column_exists("tcp", column_name):
                 print(f"[DB] Column {column_name} already exists, skipping migration {migration_path.name}")
-                return
-            if not self._table_exists(table_name) and self._table_exists("tcp"):
-                print(f"[DB] Migration {migration_path.name} - table renamed, skipping add column...")
                 return
         
         with self._connect() as connection:

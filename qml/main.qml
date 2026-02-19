@@ -8,9 +8,7 @@ ApplicationWindow {
     id: mainWindow
     visible: true
     title: "Robotine Controller"
-
     visibility: Window.Maximized
-    
 
     Rectangle {
         anchors.fill: parent
@@ -18,26 +16,16 @@ ApplicationWindow {
 
         RowLayout {
             anchors.fill: parent
+            spacing: 0
 
             Sidebar {
+                id: sidebar
                 Layout.preferredWidth: 220
                 Layout.fillHeight: true
 
                 onPageSelected: function(pageName) {
-                    console.log("Mudando para:", pageName)
-
-                    const pageUrl = Qt.resolvedUrl("pages/" + pageName + "Page.qml")
-
-                    if (stackView.currentItem && stackView.currentItem.source == pageUrl) {
-                        console.log("Página já está ativa:", pageUrl)
-                        return
-                    }
-
-                    if (Qt.resolvedUrl("pages/" + pageName + "Page.qml") !== "") {
-                        stackView.push(pageUrl)
-                    } else {
-                        console.error("Arquivo da página não encontrado:", pageUrl)
-                    }
+                    let pageUrl = Qt.resolvedUrl("pages/" + pageName + "Page.qml")
+                    stackView.replace(pageUrl)
                 }
 
                 Component.onCompleted: {
@@ -45,25 +33,19 @@ ApplicationWindow {
                 }
             }
 
-            ColumnLayout {
+            StackView {
+                id: stackView
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                spacing: 0
+                initialItem: Qt.resolvedUrl("pages/PositionsPage.qml")
+                clip: true
+                focus: true
 
-                StackView {
-                    id: stackView
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    initialItem: Qt.resolvedUrl("pages/PositionsPage.qml")
-                    clip: true
-                    focus: true
-
-                    pushEnter: Transition {
-                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
-                    }
-                    popExit: Transition {
-                        NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 200 }
-                    }
+                replaceEnter: Transition {
+                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
+                }
+                replaceExit: Transition {
+                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 150 }
                 }
             }
         }

@@ -6,14 +6,16 @@ Rectangle {
     id: background
     Layout.fillWidth: true
     Layout.preferredHeight: 55
-    Layout.margins: 12 
+    Layout.margins: 12
     radius: height / 2
     color: "#ffffff"
 
     signal connectClicked(string name)
+    signal textChanged(string text)
 
     property string buttonName: "pesquisar"
     property string placeholder: "Insira o nome da posição"
+    property alias currentText: textInput.text
 
     RowLayout {
         id: row
@@ -31,7 +33,8 @@ Rectangle {
             color: "#333"
             verticalAlignment: TextInput.AlignVCenter
             background: Rectangle { color: "transparent" }
-            padding: 8              
+            padding: 8
+            onTextChanged: background.textChanged(text)
         }
 
         Button {
@@ -42,22 +45,18 @@ Rectangle {
             Layout.preferredHeight: 45
             Layout.rightMargin: 5
 
-
             background: Rectangle {
                 radius: height / 2
-                color: connectButton.down ? "#17807E"
+                color: connectButton.down    ? "#17807E"
                      : connectButton.hovered ? "#20B2AA"
-                     : "#1CA8A4"
+                     :                        "#1CA8A4"
             }
 
             contentItem: Text {
-                anchors.centerIn: parent
-                text: connectButton.text
                 anchors.fill: parent
-                Layout.rightMargin: 5
-                Layout.leftMargin: 5
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment:   Text.AlignVCenter
+                text: connectButton.text
                 color: "white"
                 font.pixelSize: 16
             }
