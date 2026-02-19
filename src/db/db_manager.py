@@ -5,11 +5,21 @@ from contextlib import contextmanager
 from typing import Generator, Any
 
 class DB_Manager:
+    _custom_db_path = None  # class-level override shared by all instances
+
+    @classmethod
+    def set_custom_path(cls, path: str) -> None:
+        cls._custom_db_path = Path(path)
+
     def __init__(self, db_name: str = "points.db"):
         self._base_dir = Path(__file__).resolve().parent
         self._sql_dir = self._base_dir / "../../sql"
         self._migrations_dir = self._sql_dir / "migrations"
-        self._db_path = self._base_dir / db_name
+        self._default_db_path = self._base_dir / db_name
+
+    @property
+    def _db_path(self):
+        return DB_Manager._custom_db_path if DB_Manager._custom_db_path is not None else self._default_db_path
 
     @contextmanager
     def _connect(self) -> Generator[sqlite3.Connection, None, None]:

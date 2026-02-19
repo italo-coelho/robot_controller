@@ -11,11 +11,22 @@ class PositionController(QObject):
     posesLoaded = Signal(list)
     currentPoseLoaded = Signal(dict)
     currentJointPoseLoaded = Signal(dict)
+    databaseChanged = Signal(str)   # emits the new db file path
 
     def __init__(self):
         super().__init__()
         self.repo = PositionRepository()
         self.repoJ = PositionJRepository()
+
+    @Slot(str)
+    def set_database(self, path: str) -> None:
+        """Switch to an external .db file and reload all poses."""
+        from db.db_manager import DB_Manager
+        DB_Manager.set_custom_path(path)
+        db = DB_Manager()
+        db.init_database()
+        self.databaseChanged.emit(path)
+        self.load_poses()
     
     @Slot()
     def get_current_pose(self): 

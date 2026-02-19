@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import QtQuick.Dialogs
 import "../molecules"
 import "../atoms"
 
@@ -171,7 +172,70 @@ Rectangle {
         anchors.fill: parent
         Layout.margins: 30
 
-        Title { Layout.alignment: Qt.AlignJustify; titleText: "Lista de Posições" }
+        // ── Header row: title left · DB picker right ───────────────────────
+        RowLayout {
+            Layout.fillWidth: true
+
+            Title { titleText: "Lista de Posições" }
+
+            Item { Layout.fillWidth: true }
+
+            FileDialog {
+                id: dbFilePicker
+                title: "Selecionar banco de dados"
+                nameFilters: ["SQLite databases (*.db)", "All files (*)"]
+                fileMode: FileDialog.OpenFile
+                onAccepted: {
+                    let path = selectedFile.toString()
+                    path = path.replace(/^file:\/\/\//, "/").replace(/^file:\/\//, "//")
+                    PositionController.set_database(path)
+                    dbLabel.text = path.split("/").pop()
+                }
+            }
+
+            Label {
+                id: dbLabel
+                text: "points.db"
+                color: "#a0a0a0"
+                font.pixelSize: 13
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideLeft
+                Layout.maximumWidth: 220
+
+                Connections {
+                    target: PositionController
+                    function onDatabaseChanged(path) {
+                        dbLabel.text = path.split("/").pop()
+                    }
+                }
+            }
+
+            Button {
+                id: dbPickerBtn
+                text: "Trocar DB"
+                Layout.preferredHeight: 36
+                Layout.preferredWidth: 110
+                Layout.rightMargin: 4
+
+                background: Rectangle {
+                    radius: height / 2
+                    color: dbPickerBtn.down    ? "#0056B3"
+                         : dbPickerBtn.hovered ? "#0069D9"
+                         :                      "#007BFF"
+                }
+
+                contentItem: Text {
+                    anchors.fill: parent
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment:   Text.AlignVCenter
+                    text: dbPickerBtn.text
+                    color: "white"
+                    font.pixelSize: 13
+                }
+
+                onClicked: dbFilePicker.open()
+            }
+        }
 
         RowLayout {
             id: buttonsControllers
