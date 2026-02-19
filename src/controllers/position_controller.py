@@ -156,15 +156,27 @@ class PositionController(QObject):
         self.load_poses()
 
     @Slot(str, float, float, float, float, float, float)
-    def save_pose(self, name, x, y, z, rx, ry, rz): 
+    def save_pose(self, name, x, y, z, rx, ry, rz):
         print(f"[POSITION_CONTROLLER] SALVAR - Tipo: CARTESIANO")
         print(f"[POSITION_CONTROLLER] Nome: {name}, X: {x}, Y: {y}, Z: {z}, RX: {rx}, RY: {ry}, RZ: {rz}")
-        poses = self.repo.get_all_poses()  
+        poses = self.repo.get_all_poses()
         for p in poses:
             if p.name == name:
                 print(f"[POSITION_CONTROLLER] AVISO: Posição '{name}' já existe (cartesiano), não será salva")
                 return
-            
+
+        config = -1
+        try:
+            from utils.robot_singleton import RobotSingletonRCP
+            robot = RobotSingletonRCP()
+            result = robot.GetRobotCurJointsConfig()
+            if isinstance(result, tuple):
+                error, data = result
+                if error == 0:
+                    config = data
+        except Exception:
+            pass
+
         pose = PositionModel(
             id=None,
             name=name,
@@ -174,6 +186,7 @@ class PositionController(QObject):
             rx=rx,
             ry=ry,
             rz=rz,
+            config=config,
             created_at=None
         )
         self.repo.insert_pose(pose)
