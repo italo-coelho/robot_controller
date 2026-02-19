@@ -19,7 +19,7 @@ def main() -> None:
 
     app.setWindowIcon(QIcon("assets/icons/robotine.ico"))
 
-    robot = RobotSingletonRCP("192.168.15.199")
+    robot = RobotSingletonRCP("192.168.167.199")
     # robot.RobotEnable(True)
     # robot.DragTeachSwitch(False)
 

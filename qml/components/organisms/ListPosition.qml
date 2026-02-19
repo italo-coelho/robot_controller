@@ -172,90 +172,167 @@ Rectangle {
         anchors.fill: parent
         Layout.margins: 30
 
-        // ── Header row: title left · DB picker right ───────────────────────
+        // non-visual helpers (outside rows so they're always available)
+        FileDialog {
+            id: dbFilePicker
+            title: "Selecionar banco de dados"
+            nameFilters: ["SQLite databases (*.db)", "All files (*)"]
+            fileMode: FileDialog.OpenFile
+            onAccepted: {
+                let path = selectedFile.toString()
+                path = path.replace(/^file:\/\/\//, "/").replace(/^file:\/\//, "//")
+                PositionController.set_database(path)
+                dbLabel.text = path.split("/").pop()
+            }
+        }
+
+        QtObject {
+            id: ipStatus
+            property bool connected: false
+        }
+
+        Connections {
+            target: PositionController
+            function onRobotStatusChanged(connected, ip) { ipStatus.connected = connected }
+            function onDatabaseChanged(path) { dbLabel.text = path.split("/").pop() }
+        }
+
+        // ── Row 1: title left · IP selector right ────────────────────────
         RowLayout {
             Layout.fillWidth: true
+            Layout.rightMargin: 20
 
             Title { titleText: "Lista de Posições" }
 
             Item { Layout.fillWidth: true }
 
-            FileDialog {
-                id: dbFilePicker
-                title: "Selecionar banco de dados"
-                nameFilters: ["SQLite databases (*.db)", "All files (*)"]
-                fileMode: FileDialog.OpenFile
-                onAccepted: {
-                    let path = selectedFile.toString()
-                    path = path.replace(/^file:\/\/\//, "/").replace(/^file:\/\//, "//")
-                    PositionController.set_database(path)
-                    dbLabel.text = path.split("/").pop()
+            Rectangle {
+                id: ipInputBox
+                Layout.preferredWidth: 175
+                Layout.preferredHeight: 36
+                Layout.alignment: Qt.AlignVCenter
+                radius: 18
+                color: "#ffffff"
+                border.color: ipStatus.connected ? "#28A745" : "#DC3545"
+                border.width: 1.5
+
+                Rectangle {
+                    id: statusDot
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.left: parent.left
+                    anchors.leftMargin: 10
+                    width: 8; height: 8; radius: 4
+                    color: ipStatus.connected ? "#28A745" : "#DC3545"
                 }
-            }
 
-            Label {
-                id: dbLabel
-                text: "points.db"
-                color: "#a0a0a0"
-                font.pixelSize: 13
-                verticalAlignment: Text.AlignVCenter
-                elide: Text.ElideLeft
-                Layout.maximumWidth: 220
+                TextField {
+                    id: ipField
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.left: statusDot.right
+                    anchors.right: parent.right
+                    anchors.leftMargin: 6
+                    anchors.rightMargin: 8
+                    height: parent.height
+                    text: "192.168.167.199"
+                    inputMask: "000.000.000.000"
+                    font.pixelSize: 13
+                    font.family: "monospace"
+                    color: "#333"
+                    verticalAlignment: Text.AlignVCenter
+                    background: Rectangle { color: "transparent" }
 
-                Connections {
-                    target: PositionController
-                    function onDatabaseChanged(path) {
-                        dbLabel.text = path.split("/").pop()
+                    onEditingFinished: {
+                        let ip = text.replace(/_/g, "").replace(/\s/g, "")
+                        ip = ip.split(".").map(function(o){ return parseInt(o) || 0 }).join(".")
+                        ipStatus.connected = false
+                        PositionController.connect_robot(ip)
                     }
                 }
-            }
 
-            Button {
-                id: dbPickerBtn
-                text: "Trocar DB"
-                Layout.preferredHeight: 36
-                Layout.preferredWidth: 110
-                Layout.rightMargin: 4
-
-                background: Rectangle {
-                    radius: height / 2
-                    color: dbPickerBtn.down    ? "#0056B3"
-                         : dbPickerBtn.hovered ? "#0069D9"
-                         :                      "#007BFF"
+                Component.onCompleted: {
+                    let ip = ipField.text.replace(/_/g, "").replace(/\s/g, "")
+                    ip = ip.split(".").map(function(o){ return parseInt(o) || 0 }).join(".")
+                    PositionController.connect_robot(ip)
                 }
-
-                contentItem: Text {
-                    anchors.fill: parent
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment:   Text.AlignVCenter
-                    text: dbPickerBtn.text
-                    color: "white"
-                    font.pixelSize: 13
-                }
-
-                onClicked: dbFilePicker.open()
             }
         }
 
+        // ── Row 2: search left · filename | Trocar DB | Nova Posição right ─
         RowLayout {
             id: buttonsControllers
             Layout.fillWidth: true
-            Layout.alignment: Qt.AlignJustify
+            Layout.alignment: Qt.AlignVCenter
             spacing: 0
 
             TextInputBar {
                 id: positionInputBar
                 buttonName: "Pesquisar"
                 placeholder: "Insira o nome da posição"
-                // Filter as you type
                 onTextChanged: applyFilter(currentText)
-                // Filter on button click too
                 onConnectClicked: (text) => applyFilter(text)
+            }
+
+            Item { Layout.fillWidth: true }
+
+            // filename + DB picker — one pill matching the search bar
+            Rectangle {
+                Layout.preferredHeight: 55
+                Layout.alignment: Qt.AlignVCenter
+                Layout.minimumWidth: 260
+                Layout.maximumWidth: 340
+                radius: height / 2
+                color: "#ffffff"
+
+                RowLayout {
+                    anchors.fill: parent
+                    spacing: 8
+
+                    Label {
+                        id: dbLabel
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 16
+                        Layout.alignment: Qt.AlignVCenter
+                        text: "points.db"
+                        color: "#a0a0a0"
+                        font.pixelSize: 13
+                        elide: Text.ElideLeft
+                    }
+
+                    Button {
+                        id: dbPickerBtn
+                        text: "Trocar DB"
+                        Layout.preferredWidth: 110
+                        Layout.preferredHeight: 45
+                        Layout.rightMargin: 5
+                        Layout.alignment: Qt.AlignVCenter
+
+                        background: Rectangle {
+                            radius: height / 2
+                            color: dbPickerBtn.down    ? "#17807E"
+                                 : dbPickerBtn.hovered ? "#20B2AA"
+                                 :                      "#1CA8A4"
+                        }
+
+                        contentItem: Text {
+                            anchors.fill: parent
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment:   Text.AlignVCenter
+                            text: dbPickerBtn.text
+                            color: "white"
+                            font.pixelSize: 16
+                        }
+
+                        onClicked: dbFilePicker.open()
+                    }
+                }
             }
 
             CommonBtn {
                 text: "Nova Posição"
                 style: "primary"
+                Layout.preferredHeight: 50
+                Layout.preferredWidth: 130
+                Layout.alignment: Qt.AlignVCenter
                 onClicked: {
                     addPositionPopup.openWith("", "", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
                 }

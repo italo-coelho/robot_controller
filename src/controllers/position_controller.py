@@ -12,11 +12,24 @@ class PositionController(QObject):
     currentPoseLoaded = Signal(dict)
     currentJointPoseLoaded = Signal(dict)
     databaseChanged = Signal(str)   # emits the new db file path
+    robotStatusChanged = Signal(bool, str)  # connected, ip
 
     def __init__(self):
         super().__init__()
         self.repo = PositionRepository()
         self.repoJ = PositionJRepository()
+
+    @Slot(str)
+    def connect_robot(self, ip: str) -> None:
+        """Attempt to connect (or reconnect) to the robot at the given IP."""
+        from utils.robot_singleton import RobotSingletonRCP
+        try:
+            RobotSingletonRCP(ip)
+            print(f"[PositionController] Robot connected at {ip}")
+            self.robotStatusChanged.emit(True, ip)
+        except Exception as e:
+            print(f"[PositionController] Robot connection failed: {e}")
+            self.robotStatusChanged.emit(False, ip)
 
     @Slot(str)
     def set_database(self, path: str) -> None:
