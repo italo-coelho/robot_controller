@@ -13,6 +13,7 @@ class PositionController(QObject):
     currentJointPoseLoaded = Signal(dict)
     databaseChanged = Signal(str)   # emits the new db file path
     robotStatusChanged = Signal(bool, str)  # connected, ip
+    robotStatesUpdated = Signal(dict)       # estop, collision, enable
 
     def __init__(self):
         super().__init__()
@@ -30,6 +31,43 @@ class PositionController(QObject):
         except Exception as e:
             print(f"[PositionController] Robot connection failed: {e}")
             self.robotStatusChanged.emit(False, ip)
+
+    @Slot()
+    def fetch_robot_states(self) -> None:
+        """Read E-Stop / collision / enable from robot_state_pkg and emit the result."""
+        from utils.robot_singleton import RobotSingletonRCP
+        try:
+            robot = RobotSingletonRCP()
+            pkg = robot.robot_state_pkg
+            self.robotStatesUpdated.emit({
+                "estop":     int(pkg.EmergencyStop),
+                "collision": int(pkg.collisionState),
+                "enable":    int(pkg.rbtEnableState),
+            })
+        except Exception:
+            self.robotStatesUpdated.emit({"estop": -1, "collision": -1, "enable": -1})
+
+    @Slot()
+    def reset_all_error(self) -> None:
+        """Clear all robot errors."""
+        from utils.robot_singleton import RobotSingletonRCP
+        try:
+            robot = RobotSingletonRCP()
+            robot.ResetAllError()
+            print("[PositionController] ResetAllError called")
+        except Exception as e:
+            print(f"[PositionController] ResetAllError failed: {e}")
+
+    @Slot(int)
+    def robot_enable(self, state: int) -> None:
+        """Enable (state=1) or disable (state=0) the robot."""
+        from utils.robot_singleton import RobotSingletonRCP
+        try:
+            robot = RobotSingletonRCP()
+            robot.RobotEnable(state)
+            print(f"[PositionController] RobotEnable({state}) called")
+        except Exception as e:
+            print(f"[PositionController] RobotEnable failed: {e}")
 
     @Slot(int)
     def set_speed(self, speed: int) -> None:

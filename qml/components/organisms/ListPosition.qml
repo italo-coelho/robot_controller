@@ -191,10 +191,29 @@ Rectangle {
             property bool connected: false
         }
 
+        QtObject {
+            id: robotStates
+            property int estop:     -1
+            property int collision: -1
+            property int enable:    -1
+        }
+
+        Timer {
+            interval: 500
+            running: true
+            repeat: true
+            onTriggered: PositionController.fetch_robot_states()
+        }
+
         Connections {
             target: PositionController
             function onRobotStatusChanged(connected, ip) { ipStatus.connected = connected }
             function onDatabaseChanged(path) { dbLabel.text = path.split("/").pop() }
+            function onRobotStatesUpdated(states) {
+                robotStates.estop     = states["estop"]
+                robotStates.collision = states["collision"]
+                robotStates.enable    = states["enable"]
+            }
         }
 
         // ── Row 1: title left · speed selector · IP selector right ──────────
@@ -206,6 +225,108 @@ Rectangle {
             Title { titleText: "Point List" }
 
             Item { Layout.fillWidth: true }
+
+            // ── Reset / Enable buttons ────────────────────────────────────────
+            Column {
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 6
+
+                // Reset button
+                Rectangle {
+                    width: 72
+                    height: 24
+                    radius: 12
+                    color: resetMouse.containsMouse ? "#C0392B" : "#DC3545"
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Reset"
+                        font.pixelSize: 10
+                        font.bold: true
+                        color: "#ffffff"
+                        font.letterSpacing: 0.5
+                    }
+
+                    MouseArea {
+                        id: resetMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: PositionController.reset_all_error()
+                    }
+                }
+
+                // Enable / Disable button
+                Rectangle {
+                    width: 72
+                    height: 24
+                    radius: 12
+                    color: {
+                        if (robotStates.enable === 1)
+                            return enableMouse.containsMouse ? "#E0A800" : "#FFC107"
+                        return enableMouse.containsMouse ? "#1E7E34" : "#28A745"
+                    }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: robotStates.enable === 1 ? "Disable" : "Enable"
+                        font.pixelSize: 10
+                        font.bold: true
+                        color: robotStates.enable === 1 ? "#333" : "#ffffff"
+                        font.letterSpacing: 0.5
+                    }
+
+                    MouseArea {
+                        id: enableMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: PositionController.robot_enable(robotStates.enable === 1 ? 0 : 1)
+                    }
+                }
+            }
+
+            Item { Layout.preferredWidth: 16 }
+
+            // ── Robot state indicators ────────────────────────────────────────
+            Column {
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 6
+
+                Repeater {
+                    model: [
+                        { label: "E-STOP",    val: robotStates.estop,     activeColor: "#DC3545" },
+                        { label: "COLLISION", val: robotStates.collision,  activeColor: "#FD7E14" },
+                        { label: "ENABLE",    val: robotStates.enable,     activeColor: "#28A745" }
+                    ]
+
+                    Row {
+                        spacing: 7
+
+                        Rectangle {
+                            width: 8; height: 8; radius: 4
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: {
+                                if (modelData.val < 0)  return "#CCCCCC"
+                                if (modelData.label === "ENABLE")
+                                    return modelData.val === 1 ? modelData.activeColor : "#CCCCCC"
+                                return modelData.val === 1 ? modelData.activeColor : "#28A745"
+                            }
+                        }
+
+                        Text {
+                            text: modelData.label
+                            font.pixelSize: 10
+                            font.bold: true
+                            font.letterSpacing: 0.8
+                            color: "#555"
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                }
+            }
+
+            Item { Layout.preferredWidth: 12 }
 
             // ── Speed selector ────────────────────────────────────────────────
             Column {
