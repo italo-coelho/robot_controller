@@ -198,13 +198,6 @@ Rectangle {
             property int enable:    -1
         }
 
-        Timer {
-            interval: 500
-            running: true
-            repeat: true
-            onTriggered: PositionController.fetch_robot_states()
-        }
-
         Connections {
             target: PositionController
             function onRobotStatusChanged(connected, ip) { ipStatus.connected = connected }
@@ -526,7 +519,37 @@ Rectangle {
                     }
                 }
             }
+
+            Item { Layout.preferredWidth: 16 }
+
+            // ── Jog Control button ────────────────────────────────────────────
+            Rectangle {
+                Layout.alignment: Qt.AlignVCenter
+                width: 72
+                height: 54
+                radius: 12
+                color: jogCtrlMouse.containsMouse ? "#4F46E5" : "#6366F1"
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "JOG"
+                    font.pixelSize: 14
+                    font.bold: true
+                    font.letterSpacing: 2
+                    color: "#FFFFFF"
+                }
+
+                MouseArea {
+                    id: jogCtrlMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: jogControlPopup.visible ? jogControlPopup.hide() : jogControlPopup.show()
+                }
+            }
         }
+
+        JogControlPopup { id: jogControlPopup }
 
         // ── Row 2: search left · filename | Trocar DB | Nova Posição right ─
         RowLayout {

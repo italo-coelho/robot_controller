@@ -1,4 +1,4 @@
-from PySide6.QtCore import QObject, Slot, Signal
+from PySide6.QtCore import QObject, Slot, Signal, QTimer
 from repository.position_repository import PositionRepository
 from repository.positionJ_repository import PositionJRepository
 from model.position_model import PositionModel
@@ -14,11 +14,21 @@ class PositionController(QObject):
     databaseChanged = Signal(str)   # emits the new db file path
     robotStatusChanged = Signal(bool, str)  # connected, ip
     robotStatesUpdated = Signal(dict)       # estop, collision, enable
+    jogStateUpdated    = Signal(dict)       # tcp[6] + joints[6] from state pkg
 
     def __init__(self):
         super().__init__()
         self.repo = PositionRepository()
         self.repoJ = PositionJRepository()
+        self._jog_timer = QTimer(self)
+        self._jog_timer.setInterval(100)
+        self._jog_timer.timeout.connect(self._poll_jog_state)
+        self._jog_timer.start()
+
+        self._status_timer = QTimer(self)
+        self._status_timer.setInterval(200)
+        self._status_timer.timeout.connect(self._poll_robot_states)
+        self._status_timer.start()
 
     @Slot(str)
     def connect_robot(self, ip: str) -> None:
@@ -32,20 +42,30 @@ class PositionController(QObject):
             print(f"[PositionController] Robot connection failed: {e}")
             self.robotStatusChanged.emit(False, ip)
 
-    @Slot()
-    def fetch_robot_states(self) -> None:
-        """Read E-Stop / collision / enable from robot_state_pkg and emit the result."""
+    def _poll_robot_states(self) -> None:
+        """Called by QTimer every 200 ms — reads robot_state_pkg directly."""
         from utils.robot_singleton import RobotSingletonRCP
         try:
-            robot = RobotSingletonRCP()
-            pkg = robot.robot_state_pkg
+            pkg = RobotSingletonRCP().robot_state_pkg
             self.robotStatesUpdated.emit({
                 "estop":     int(pkg.EmergencyStop),
                 "collision": int(pkg.collisionState),
                 "enable":    int(pkg.rbtEnableState),
             })
         except Exception:
-            self.robotStatesUpdated.emit({"estop": -1, "collision": -1, "enable": -1})
+            pass
+
+    def _poll_jog_state(self) -> None:
+        """Called by QTimer every 100 ms — reads robot_state_pkg directly, no XML-RPC."""
+        from utils.robot_singleton import RobotSingletonRCP
+        try:
+            pkg = RobotSingletonRCP().robot_state_pkg
+            self.jogStateUpdated.emit({
+                "tcp":    [float(pkg.tl_cur_pos[i]) for i in range(6)],
+                "joints": [float(pkg.jt_cur_pos[i]) for i in range(6)],
+            })
+        except Exception:
+            pass
 
     @Slot()
     def reset_all_error(self) -> None:
@@ -120,6 +140,47 @@ class PositionController(QObject):
     @Slot()
     def stop_motion(self):
         _SERVICE.stop_motion()
+
+    @Slot(str, int, float)
+    def jog_cartesian(self, axis: str, direction: int, step: float) -> None:
+        """Jog in base-frame cartesian space.
+        axis: 'x'|'y'|'z'|'rx'|'ry'|'rz', direction: 1 or -1, step: mm / degrees.
+        Moves to current_pose + delta; call stop_motion() on button release."""
+        from utils.robot_singleton import RobotSingletonRCP
+        try:
+            robot = RobotSingletonRCP()
+            res = robot.GetActualTCPPose()
+            if not isinstance(res, tuple):
+                return
+            _, pose = res
+            target = [float(v) for v in pose[:6]]
+            idx = {'x': 0, 'y': 1, 'z': 2, 'rx': 3, 'ry': 4, 'rz': 5}.get(axis, -1)
+            if idx < 0:
+                return
+            target[idx] += direction * step
+            cfg = robot.GetRobotCurJointsConfig()
+            config = cfg[1] if isinstance(cfg, tuple) and cfg[0] == 0 else -1
+            ik = robot.GetInverseKin(desc_pos=target, type=0, config=config)
+            if isinstance(ik, tuple) and ik[0] == 0:
+                robot.MoveJ(joint_pos=ik[1], tool=1, user=0, vel=100, blendT=0)
+        except Exception as e:
+            print(f"[PositionController] jog_cartesian failed: {e}")
+
+    @Slot(int, int, float)
+    def jog_joint(self, joint_idx: int, direction: int, step: float) -> None:
+        """Jog a single joint. joint_idx: 0–5, direction: 1 or -1, step: degrees."""
+        from utils.robot_singleton import RobotSingletonRCP
+        try:
+            robot = RobotSingletonRCP()
+            res = robot.GetActualJointPosDegree(0)
+            if not isinstance(res, tuple):
+                return
+            _, joints = res
+            target = [float(j) for j in joints[:6]]
+            target[joint_idx] += direction * step
+            robot.MoveJ(joint_pos=target, tool=1, user=0, vel=100, blendT=0)
+        except Exception as e:
+            print(f"[PositionController] jog_joint failed: {e}")
 
     @Slot(str, float, float, float, float, float, float)
     def move_joints(self, name, j1, j2, j3, j4, j5, j6):
