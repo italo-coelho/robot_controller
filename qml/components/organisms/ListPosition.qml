@@ -110,7 +110,7 @@ Rectangle {
 
     PositionPopup {
         id: editPositionPopup
-        mainButtonText: "Editar"
+        mainButtonText: "Edit"
         onMainButtonClicked: {
             if (isJointMode) {
                 PositionController.update_joint_pose(
@@ -175,7 +175,7 @@ Rectangle {
         // non-visual helpers (outside rows so they're always available)
         FileDialog {
             id: dbFilePicker
-            title: "Selecionar banco de dados"
+            title: "Select points dB"
             nameFilters: ["SQLite databases (*.db)", "All files (*)"]
             fileMode: FileDialog.OpenFile
             onAccepted: {
@@ -202,7 +202,7 @@ Rectangle {
             Layout.fillWidth: true
             Layout.rightMargin: 20
 
-            Title { titleText: "Lista de Posições" }
+            Title { titleText: "Points List" }
 
             Item { Layout.fillWidth: true }
 
@@ -266,8 +266,8 @@ Rectangle {
 
             TextInputBar {
                 id: positionInputBar
-                buttonName: "Pesquisar"
-                placeholder: "Insira o nome da posição"
+                buttonName: "Search"
+                placeholder: "Type point name..."
                 onTextChanged: applyFilter(currentText)
                 onConnectClicked: (text) => applyFilter(text)
             }
@@ -300,7 +300,7 @@ Rectangle {
 
                     Button {
                         id: dbPickerBtn
-                        text: "Trocar DB"
+                        text: "Select dB"
                         Layout.preferredWidth: 110
                         Layout.preferredHeight: 45
                         Layout.rightMargin: 5
@@ -328,7 +328,7 @@ Rectangle {
             }
 
             CommonBtn {
-                text: "Nova Posição"
+                text: "New Point"
                 style: "primary"
                 Layout.preferredHeight: 50
                 Layout.preferredWidth: 130
@@ -442,7 +442,7 @@ Rectangle {
         }
 
         CommonBtn {
-            text: "Deletar Lista"
+            text: "Delete List"
             style: "danger"
             onClicked: {
                 PositionController.delete_all_poses()

@@ -42,7 +42,7 @@ Popup {
         spacing: 20
 
         Label {
-            text: "Adicionar nova posição"
+            text: "Add new point"
             color: "#525252"
             font.bold: true
             Layout.alignment: Qt.AlignHCenter
@@ -57,7 +57,7 @@ Popup {
             radius: height / 2
             color: "#ffffff"
 
-            property string placeholder: "Insira o nome da posição"
+            property string placeholder: "Type point name"
 
             RowLayout {
                 id: row
@@ -87,7 +87,7 @@ Popup {
             spacing: 10
 
             Label {
-                text: "Cartesiano"
+                text: "Cartesian"
                 color: toast.isJointMode ? '#c71f1f' : "#525252"
                 font.bold: !toast.isJointMode
             }
@@ -101,7 +101,7 @@ Popup {
             }
 
             Label {
-                text: "Juntas"
+                text: "Joints"
                 color: toast.isJointMode ? '#da2222' : "#b6b3b3"
                 font.bold: toast.isJointMode
             }
@@ -159,7 +159,7 @@ Popup {
             spacing: 0
 
             CommonBtn {
-                text: "Posição Atual"
+                text: "Get Position"
                 style: "info"
                 onClicked: {
                     if (toast.isJointMode) {
@@ -173,7 +173,7 @@ Popup {
             Item{ Layout.fillWidth: true }
 
             CommonBtn {
-                text: "Mover"
+                text: "Move"
                 style: "secondary"
                 onClicked: {
                     if (toast.isJointMode) {
@@ -216,7 +216,7 @@ Popup {
             spacing: 0
 
             CommonBtn {
-                text: "Cancelar"
+                text: "Cancel"
                 style: "danger"
                 onClicked: {
                     textInput.text = ""
@@ -226,7 +226,7 @@ Popup {
             }
 
             CommonBtn { 
-                text: "Editar"
+                text: "Edit"
                 style: "success"
 
                 onClicked: {

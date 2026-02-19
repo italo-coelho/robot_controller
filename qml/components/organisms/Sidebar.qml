@@ -53,8 +53,8 @@ Rectangle {
 
         Repeater {
             model: [
-                { label: "Posições",     page: "Positions"    },
-                { label: "Equipamentos", page: "Equipamentos" }
+                { label: "Points",     page: "Positions"    },
+                { label: "Systems", page: "Equipamentos" }
             ]
             delegate: Rectangle {
                 width: parent.width

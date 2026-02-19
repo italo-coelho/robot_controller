@@ -15,7 +15,7 @@ Popup {
     width:  Math.min(Overlay.overlay.width  * 0.60, 900)
     height: Math.min(Overlay.overlay.height * 0.80, 700)
 
-    property string mainButtonText: "Salvar"
+    property string mainButtonText: "Save"
     property string actualPositionName: ""
     property string poseId: ""
     property bool isJointMode: false
@@ -132,7 +132,7 @@ Popup {
         spacing: 5
 
         Label {
-            text: `${mainButtonText} nova posição`
+            text: `${mainButtonText}`
             color: "#525252"
             font.bold: true
             Layout.alignment: Qt.AlignHCenter
@@ -148,7 +148,7 @@ Popup {
             Layout.margins: 6
             radius: height / 2
             color: "#ffffff"
-            property string placeholder: "Insira o nome da posição"
+            property string placeholder: "Type point name"
 
             RowLayout {
                 anchors.fill: parent
@@ -176,7 +176,7 @@ Popup {
             spacing: 10
 
             Label {
-                text: "Cartesiano"
+                text: "Cartesian"
                 color: toast.isJointMode ? '#c71f1f' : "#525252"
                 font.bold: !toast.isJointMode
             }
@@ -190,7 +190,7 @@ Popup {
             }
 
             Label {
-                text: "Juntas"
+                text: "Joints"
                 color: toast.isJointMode ? '#da2222' : "#b6b3b3"
                 font.bold: toast.isJointMode
             }
@@ -238,7 +238,7 @@ Popup {
             Layout.fillWidth: true
             spacing: 8
             CommonBtn {
-                text: "Posição Atual"
+                text: "Get Position"
                 style: "info"
                 onClicked: {
                     if (toast.isJointMode) {
@@ -251,7 +251,7 @@ Popup {
             Item { Layout.fillWidth: true }
 
             CommonBtn {
-                text: "Mover"
+                text: "Move Robot"
                 style: "secondary"
                 onClicked: {
                     if (toast.isJointMode) {
@@ -285,7 +285,7 @@ Popup {
             Layout.fillWidth: true
             spacing: 0
             CommonBtn {
-                text: "Cancelar"
+                text: "Cancel"
                 style: "danger"
                 onClicked: toast.close()
             }

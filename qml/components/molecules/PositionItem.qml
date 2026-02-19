@@ -40,7 +40,7 @@ Rectangle {
             }
 
             Tag {
-                text: poseType === "joint" ? "Juntas" : "Cartesiano"
+                text: poseType === "joint" ? "Joints" : "Cartesian"
                 backgroundColor: poseType === "joint" ? "#ffd6d6" : "#d6e3ff"
             }
 

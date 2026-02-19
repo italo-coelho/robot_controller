@@ -87,14 +87,14 @@ Popup {
         spacing: 8
 
         Label {
-            text: "Editar offset"
+            text: "Edit Offset"
             color: "#525252"
             font.bold: true
             Layout.alignment: Qt.AlignHCenter
         }
 
         Label {
-            text: `Posicao: ${actualPositionName}`
+            text: `Position: ${actualPositionName}`
             color: "#6a6a6a"
             Layout.alignment: Qt.AlignHCenter
         }
@@ -143,13 +143,13 @@ Popup {
             Layout.fillWidth: true
             spacing: 0
             CommonBtn {
-                text: "Cancelar"
+                text: "Cancel"
                 style: "danger"
                 onClicked: offsetPopup.close()
             }
             CommonBtn {
-                text: "Resetar"
-                style: "primary"
+                text: "Reset"
+                style: "warning"
                 onClicked: {
                     if (offsetPopup.isJointMode) {
                         jointDx.value  = "0.0"
@@ -169,7 +169,7 @@ Popup {
                 }
             }
             CommonBtn {
-                text: "Salvar"
+                text: "Save"
                 style: "success"
                 onClicked: {
                     if (actualPositionName.length === 0) return
