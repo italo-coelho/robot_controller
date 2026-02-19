@@ -197,62 +197,213 @@ Rectangle {
             function onDatabaseChanged(path) { dbLabel.text = path.split("/").pop() }
         }
 
-        // ── Row 1: title left · IP selector right ────────────────────────
+        // ── Row 1: title left · speed selector · IP selector right ──────────
         RowLayout {
             Layout.fillWidth: true
             Layout.rightMargin: 20
+            spacing: 10
 
             Title { titleText: "Point List" }
 
             Item { Layout.fillWidth: true }
 
-            Rectangle {
-                id: ipInputBox
-                Layout.preferredWidth: 175
-                Layout.preferredHeight: 36
+            // ── Speed selector ────────────────────────────────────────────────
+            Column {
                 Layout.alignment: Qt.AlignVCenter
-                radius: 18
-                color: "#ffffff"
-                border.color: ipStatus.connected ? "#28A745" : "#DC3545"
-                border.width: 1.5
+                spacing: 4
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "SPEED"
+                    font.pixelSize: 9
+                    font.bold: true
+                    font.letterSpacing: 1.2
+                    color: "#888"
+                }
 
                 Rectangle {
-                    id: statusDot
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.left: parent.left
-                    anchors.leftMargin: 10
-                    width: 8; height: 8; radius: 4
-                    color: ipStatus.connected ? "#28A745" : "#DC3545"
-                }
+                    id: speedBox
+                    width: 148
+                    height: 36
+                    radius: 18
+                    color: "#ffffff"
+                    border.color: "#6C757D"
+                    border.width: 1.5
 
-                TextField {
-                    id: ipField
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.left: statusDot.right
-                    anchors.right: parent.right
-                    anchors.leftMargin: 6
-                    anchors.rightMargin: 8
-                    height: parent.height
-                    text: "192.168.167.199"
-                    inputMask: "000.000.000.000"
-                    font.pixelSize: 13
-                    font.family: "monospace"
-                    color: "#333"
-                    verticalAlignment: Text.AlignVCenter
-                    background: Rectangle { color: "transparent" }
+                    property int currentSpeed: 100
+                    property var presets: [10, 25, 50, 75, 100]
 
-                    onEditingFinished: {
-                        let ip = text.replace(/_/g, "").replace(/\s/g, "")
-                        ip = ip.split(".").map(function(o){ return parseInt(o) || 0 }).join(".")
-                        ipStatus.connected = false
-                        PositionController.connect_robot(ip)
+                    function applySpeed(val) {
+                        val = Math.max(1, Math.min(100, val))
+                        currentSpeed = val
+                        speedField.text = val + "%"
+                        PositionController.set_speed(val)
+                    }
+
+                    function prevPreset() {
+                        for (let i = presets.length - 1; i >= 0; i--) {
+                            if (presets[i] < currentSpeed) { applySpeed(presets[i]); return }
+                        }
+                        applySpeed(presets[0])
+                    }
+
+                    function nextPreset() {
+                        for (let i = 0; i < presets.length; i++) {
+                            if (presets[i] > currentSpeed) { applySpeed(presets[i]); return }
+                        }
+                        applySpeed(presets[presets.length - 1])
+                    }
+
+                    // − button
+                    Rectangle {
+                        id: minusBtnArea
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
+                        anchors.leftMargin: 6
+                        width: 24; height: 24; radius: 12
+                        color: minusMouse.containsMouse ? "#F0F0F0" : "transparent"
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "−"
+                            font.pixelSize: 16
+                            font.bold: true
+                            color: "#555"
+                        }
+
+                        MouseArea {
+                            id: minusMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: speedBox.prevPreset()
+                        }
+                    }
+
+                    // speed text field
+                    TextField {
+                        id: speedField
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: minusBtnArea.right
+                        anchors.right: plusBtnArea.left
+                        anchors.leftMargin: 2
+                        anchors.rightMargin: 2
+                        height: parent.height
+                        text: "100%"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.pixelSize: 13
+                        font.bold: true
+                        color: "#333"
+                        background: Rectangle { color: "transparent" }
+
+                        onEditingFinished: {
+                            let raw = text.replace(/%/g, "").trim()
+                            let val = parseInt(raw)
+                            if (!isNaN(val) && val >= 1 && val <= 100)
+                                speedBox.applySpeed(val)
+                            else
+                                text = speedBox.currentSpeed + "%"
+                        }
+
+                        Keys.onReturnPressed: editingFinished()
+                    }
+
+                    // + button
+                    Rectangle {
+                        id: plusBtnArea
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.right: parent.right
+                        anchors.rightMargin: 6
+                        width: 24; height: 24; radius: 12
+                        color: plusMouse.containsMouse ? "#F0F0F0" : "transparent"
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "+"
+                            font.pixelSize: 16
+                            font.bold: true
+                            color: "#555"
+                        }
+
+                        MouseArea {
+                            id: plusMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: speedBox.nextPreset()
+                        }
                     }
                 }
+            }
 
-                Component.onCompleted: {
-                    let ip = ipField.text.replace(/_/g, "").replace(/\s/g, "")
-                    ip = ip.split(".").map(function(o){ return parseInt(o) || 0 }).join(".")
-                    PositionController.connect_robot(ip)
+            // 3× gap between speed and IP
+            Item { Layout.preferredWidth: 20 }
+
+            // ── IP selector ───────────────────────────────────────────────────
+            Column {
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 4
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "ROBOT IP"
+                    font.pixelSize: 9
+                    font.bold: true
+                    font.letterSpacing: 1.2
+                    color: "#888"
+                }
+
+                Rectangle {
+                    id: ipInputBox
+                    width: 175
+                    height: 36
+                    radius: 18
+                    color: "#ffffff"
+                    border.color: ipStatus.connected ? "#28A745" : "#DC3545"
+                    border.width: 1.5
+
+                    // status dot — pinned left
+                    Rectangle {
+                        id: statusDot
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
+                        anchors.leftMargin: 12
+                        width: 8; height: 8; radius: 4
+                        color: ipStatus.connected ? "#28A745" : "#DC3545"
+                    }
+
+                    // IP field — centered in the pill, equal padding both sides
+                    TextField {
+                        id: ipField
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.leftMargin: 28
+                        anchors.rightMargin: 28
+                        height: parent.height
+                        text: "192.168.167.199"
+                        inputMask: "000.000.000.000"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.pixelSize: 13
+                        font.family: "monospace"
+                        color: "#333"
+                        background: Rectangle { color: "transparent" }
+
+                        onEditingFinished: {
+                            let ip = text.replace(/_/g, "").replace(/\s/g, "")
+                            ip = ip.split(".").map(function(o){ return parseInt(o) || 0 }).join(".")
+                            ipStatus.connected = false
+                            PositionController.connect_robot(ip)
+                        }
+                    }
+
+                    Component.onCompleted: {
+                        let ip = ipField.text.replace(/_/g, "").replace(/\s/g, "")
+                        ip = ip.split(".").map(function(o){ return parseInt(o) || 0 }).join(".")
+                        PositionController.connect_robot(ip)
+                    }
                 }
             }
         }

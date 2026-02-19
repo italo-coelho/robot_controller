@@ -31,6 +31,17 @@ class PositionController(QObject):
             print(f"[PositionController] Robot connection failed: {e}")
             self.robotStatusChanged.emit(False, ip)
 
+    @Slot(int)
+    def set_speed(self, speed: int) -> None:
+        """Set robot speed (1-100%)."""
+        from utils.robot_singleton import RobotSingletonRCP
+        try:
+            robot = RobotSingletonRCP()
+            robot.SetSpeed(speed)
+            print(f"[PositionController] Speed set to {speed}%")
+        except Exception as e:
+            print(f"[PositionController] Failed to set speed: {e}")
+
     @Slot(str)
     def set_database(self, path: str) -> None:
         """Switch to an external .db file and reload all poses."""
