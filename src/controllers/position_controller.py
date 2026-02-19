@@ -83,6 +83,28 @@ class PositionController(QObject):
 
         _SERVICE.move_joints(points)
 
+    @Slot(str, str, str)
+    def move_j_with_offset(self, name, base_csv, offset_csv):
+        """base_csv: 'x,y,z,rx,ry,rz'  offset_csv: 'dx,dy,dz,drx,dry,drz'"""
+        print(f"[CTRL] move_j_with_offset name={name} base={base_csv} offset={offset_csv}")
+        b = [float(v) if v and v != 'NaN' else 0.0 for v in base_csv.split(",")]
+        o = [float(v) if v and v != 'NaN' else 0.0 for v in offset_csv.split(",")]
+        points = PositionModel(id=None, name=name,
+                               x=b[0], y=b[1], z=b[2], rx=b[3], ry=b[4], rz=b[5],
+                               dx=o[0], dy=o[1], dz=o[2], drx=o[3], dry=o[4], drz=o[5])
+        _SERVICE.move_with_offset(points)
+
+    @Slot(str, str, str)
+    def move_joints_with_offset(self, name, base_csv, offset_csv):
+        """base_csv: 'j1,j2,j3,j4,j5,j6'  offset_csv: 'dx,dy,dz,drx,dry,drz'"""
+        print(f"[CTRL] move_joints_with_offset name={name} base={base_csv} offset={offset_csv}")
+        b = [float(v) if v and v != 'NaN' else 0.0 for v in base_csv.split(",")]
+        o = [float(v) if v and v != 'NaN' else 0.0 for v in offset_csv.split(",")]
+        points = PositionJModel(id=None, name=name,
+                                j1=b[0], j2=b[1], j3=b[2], j4=b[3], j5=b[4], j6=b[5],
+                                dx=o[0], dy=o[1], dz=o[2], drx=o[3], dry=o[4], drz=o[5])
+        _SERVICE.move_joints_with_offset(points)
+
     @Slot()
     def load_poses(self):
         cartesian_poses = self.repo.get_all_poses()

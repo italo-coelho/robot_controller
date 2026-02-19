@@ -121,10 +121,32 @@ class RobotService:
         if(isinstance(result, tuple)):
             error, position = result
             if(error != 0): return False
-            success = robot.MoveJ(joint_pos = position, tool = 1, user = 0, vel = 200)
+            success = robot.MoveJ(joint_pos = position, tool = 1, user = 0, vel = 100)
             print("Movendo o robo para a posicao salva", success)
             return bool(success == 0)
     
+    def move_with_offset(self, points: PositionModel):
+        robot = RobotSingletonRCP()
+        desc_pos = [points.x, points.y, points.z, points.rx, points.ry, points.rz]
+        offset_pos = [points.dx, points.dy, points.dz, points.drx, points.dry, points.drz]
+        config1 = points.config
+        result = robot.GetInverseKin(desc_pos=desc_pos, type=0, config=config1)
+        if isinstance(result, tuple):
+            error, joint_pos = result
+            if error != 0:
+                return False
+            success = robot.MoveJ(joint_pos=joint_pos, tool=1, user=0, vel=100,
+                                  offset_flag=2, offset_pos=offset_pos)
+            return bool(success == 0)
+
+    def move_joints_with_offset(self, points: PositionJModel):
+        robot = RobotSingletonRCP()
+        joint_pos = [points.j1, points.j2, points.j3, points.j4, points.j5, points.j6]
+        offset_pos = [points.dx, points.dy, points.dz, points.drx, points.dry, points.drz]
+        success = robot.MoveJ(joint_pos=joint_pos, tool=1, user=0, vel=100,
+                              offset_flag=2, offset_pos=offset_pos)
+        return bool(success == 0)
+
     def move_joints(self, points: PositionJModel):
         
         robot = RobotSingletonRCP()
@@ -139,5 +161,5 @@ class RobotService:
                      points.j6
                      ]
         
-        success = robot.MoveJ(joint_pos = joint_pos, tool = 1, user = 0, vel = 200)
+        success = robot.MoveJ(joint_pos = joint_pos, tool = 1, user = 0, vel = 100)
         return bool(success == 0)

@@ -175,7 +175,7 @@ Rectangle {
         // non-visual helpers (outside rows so they're always available)
         FileDialog {
             id: dbFilePicker
-            title: "Select points dB"
+            title: "Select Points dB"
             nameFilters: ["SQLite databases (*.db)", "All files (*)"]
             fileMode: FileDialog.OpenFile
             onAccepted: {
@@ -202,7 +202,7 @@ Rectangle {
             Layout.fillWidth: true
             Layout.rightMargin: 20
 
-            Title { titleText: "Points List" }
+            Title { titleText: "Point List" }
 
             Item { Layout.fillWidth: true }
 
@@ -419,22 +419,18 @@ Rectangle {
                     if (model.type === "joint") {
                         offsetPopup.openWithJoints(
                             name,
-                            poses.dx,
-                            poses.dy,
-                            poses.dz,
-                            poses.drx,
-                            poses.dry,
-                            poses.drz
+                            poses.dx,  poses.dy,  poses.dz,
+                            poses.drx, poses.dry, poses.drz,
+                            poses.j1, poses.j2, poses.j3,
+                            poses.j4, poses.j5, poses.j6
                         )
                     } else {
                         offsetPopup.openWithTcp(
                             name,
-                            poses.posDX,
-                            poses.posDY,
-                            poses.posDZ,
-                            poses.posDRX,
-                            poses.posDRY,
-                            poses.posDRZ
+                            poses.posDX,  poses.posDY,  poses.posDZ,
+                            poses.posDRX, poses.posDRY, poses.posDRZ,
+                            poses.posX,  poses.posY,  poses.posZ,
+                            poses.posRX, poses.posRY, poses.posRZ
                         )
                     }
                 }
