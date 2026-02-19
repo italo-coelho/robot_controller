@@ -156,7 +156,7 @@ Popup {
                 style: "secondary"
                 Layout.fillWidth: true
                 Layout.margins: 0
-                onClicked: {
+                onPressed: {
                     if (offsetPopup.isJointMode) {
                         let base   = [baseJ1, baseJ2, baseJ3, baseJ4, baseJ5, baseJ6].join(",")
                         let offset = [parseFloat(jointDx.value) || 0, parseFloat(jointDy.value) || 0,
@@ -171,6 +171,7 @@ Popup {
                         PositionController.move_j_with_offset(actualPositionName, base, offset)
                     }
                 }
+                onReleased: PositionController.stop_motion()
             }
         }
 

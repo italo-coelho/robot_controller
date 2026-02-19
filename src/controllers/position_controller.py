@@ -68,8 +68,12 @@ class PositionController(QObject):
 
         _SERVICE.move(points)
     
+    @Slot()
+    def stop_motion(self):
+        _SERVICE.stop_motion()
+
     @Slot(str, float, float, float, float, float, float)
-    def move_joints(self, name, j1, j2, j3, j4, j5, j6): 
+    def move_joints(self, name, j1, j2, j3, j4, j5, j6):
         points = PositionJModel(
             id=None,
             name=name,

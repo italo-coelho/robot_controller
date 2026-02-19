@@ -16,7 +16,8 @@ Rectangle {
     property var poses
     property string poseType: "cartesian"
 
-    signal moveClicked(string poseName, var poses, string poseType)
+    signal movePressed(string poseName, var poses, string poseType)
+    signal moveReleased()
     signal editClicked(int poseId)
     signal deleteClicked(int poseId)
     signal offsetClicked(int poseId)
@@ -52,7 +53,8 @@ Rectangle {
 
                 IconBtn {
                     iconSource: "../../../assets/icons/industrial-robot.png"
-                    onClicked: positionItem.moveClicked(nameText, poses, poseType)
+                    onPressed: positionItem.movePressed(nameText, poses, poseType)
+                    onReleased: positionItem.moveReleased()
                 }
                 IconBtn {
                     iconSource: "../../../assets/icons/edit.png"

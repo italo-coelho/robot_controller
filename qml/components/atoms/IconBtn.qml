@@ -13,6 +13,8 @@ Rectangle {
     property string iconSource: "../../assets/icons/trash-can.png"
 
     signal clicked()
+    signal pressed()
+    signal released()
 
     Image {
         anchors.centerIn: parent
@@ -30,5 +32,8 @@ Rectangle {
         onExited: parent.hovered = false
 
         onClicked: iconBtn.clicked()
+        onPressed: iconBtn.pressed()
+        onReleased: iconBtn.released()
+        onCanceled: iconBtn.released()
     }
 }

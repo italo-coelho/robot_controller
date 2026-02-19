@@ -121,7 +121,7 @@ class RobotService:
         if(isinstance(result, tuple)):
             error, position = result
             if(error != 0): return False
-            success = robot.MoveJ(joint_pos = position, tool = 1, user = 0, vel = 100)
+            success = robot.MoveJ(joint_pos = position, tool = 1, user = 0, vel = 100, blendT=0)
             print("Movendo o robo para a posicao salva", success)
             return bool(success == 0)
     
@@ -136,7 +136,7 @@ class RobotService:
             if error != 0:
                 return False
             success = robot.MoveJ(joint_pos=joint_pos, tool=1, user=0, vel=100,
-                                  offset_flag=2, offset_pos=offset_pos)
+                                  offset_flag=2, offset_pos=offset_pos, blendT=0)
             return bool(success == 0)
 
     def move_joints_with_offset(self, points: PositionJModel):
@@ -144,22 +144,26 @@ class RobotService:
         joint_pos = [points.j1, points.j2, points.j3, points.j4, points.j5, points.j6]
         offset_pos = [points.dx, points.dy, points.dz, points.drx, points.dry, points.drz]
         success = robot.MoveJ(joint_pos=joint_pos, tool=1, user=0, vel=100,
-                              offset_flag=2, offset_pos=offset_pos)
+                              offset_flag=2, offset_pos=offset_pos, blendT=0)
         return bool(success == 0)
 
     def move_joints(self, points: PositionJModel):
-        
+
         robot = RobotSingletonRCP()
         timestamp = datetime.now().isoformat()
         ip_result = robot.GetControllerIP()
 
-        joint_pos = [points.j1, 
-                     points.j2, 
-                     points.j3, 
-                     points.j4, 
-                     points.j5, 
+        joint_pos = [points.j1,
+                     points.j2,
+                     points.j3,
+                     points.j4,
+                     points.j5,
                      points.j6
                      ]
-        
-        success = robot.MoveJ(joint_pos = joint_pos, tool = 1, user = 0, vel = 100)
+
+        success = robot.MoveJ(joint_pos = joint_pos, tool = 1, user = 0, vel = 100, blendT=0)
         return bool(success == 0)
+
+    def stop_motion(self):
+        robot = RobotSingletonRCP()
+        robot.StopMotion()

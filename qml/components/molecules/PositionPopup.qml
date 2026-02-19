@@ -253,7 +253,7 @@ Popup {
             CommonBtn {
                 text: "Move Robot"
                 style: "secondary"
-                onClicked: {
+                onPressed: {
                     if (toast.isJointMode) {
                         PositionController.move_joints(
                             textInput.text,
@@ -276,6 +276,7 @@ Popup {
                         )
                     }
                 }
+                onReleased: PositionController.stop_motion()
             }
         }
 

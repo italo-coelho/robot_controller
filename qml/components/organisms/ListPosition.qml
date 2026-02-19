@@ -361,7 +361,7 @@ Rectangle {
                 poses: model.poses
                 poseType: model.type || "cartesian"
 
-                onMoveClicked: (poseName, poseData, type) => {
+                onMovePressed: (poseName, poseData, type) => {
                     if (type === "joint") {
                         PositionController.move_joints(
                             poseName,
@@ -384,6 +384,8 @@ Rectangle {
                         )
                     }
                 }
+
+                onMoveReleased: PositionController.stop_motion()
 
                 onEditClicked: (itemId) => {
                     if (model.type === "joint") {
