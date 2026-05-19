@@ -1,8 +1,17 @@
 import sqlite3
+import sys
 from pathlib import Path
 from functools import lru_cache
 from contextlib import contextmanager
 from typing import Generator, Any
+
+
+def _resource_root() -> Path:
+    """Project root in source, sys._MEIPASS in a PyInstaller bundle."""
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS)
+    # src/db/db_manager.py → src/db → src → project root
+    return Path(__file__).resolve().parent.parent.parent
 
 class DB_Manager:
     # The database path is selected at runtime via the file picker; there is no
@@ -22,8 +31,7 @@ class DB_Manager:
         return cls._custom_db_path
 
     def __init__(self):
-        self._base_dir = Path(__file__).resolve().parent
-        self._sql_dir = self._base_dir / "../../sql"
+        self._sql_dir = _resource_root() / "sql"
         self._migrations_dir = self._sql_dir / "migrations"
 
     @property

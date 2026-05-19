@@ -1,5 +1,5 @@
 from pathlib import Path
-from PySide6.QtCore import QUrl, QDir, QSettings, QCoreApplication
+from PySide6.QtCore import QUrl, QSettings, QCoreApplication
 from PySide6.QtWidgets import QApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from controllers.position_controller import PositionController
@@ -7,6 +7,15 @@ from utils.robot_singleton import RobotSingletonRCP
 from db.db_manager import DB_Manager
 from PySide6.QtGui import QIcon
 import sys
+
+
+# Locate bundled resources whether running from source or from a PyInstaller
+# build. In a frozen build, sys._MEIPASS is the path to the bundled resource
+# directory; in source it's the project root (one level above this file).
+if getattr(sys, "frozen", False):
+    RESOURCE_DIR = Path(sys._MEIPASS)
+else:
+    RESOURCE_DIR = Path(__file__).resolve().parent.parent
 
 
 def main() -> None:
@@ -30,15 +39,25 @@ def main() -> None:
     else:
         print("[DB] No database selected yet; pick one via the 'Select dB' button.")
 
+    # Windows: without an explicit AppUserModelID, the taskbar groups this
+    # process under the Python launcher and shows its generic icon. Setting
+    # our own ID before QApplication is created makes Windows use the icon
+    # we pass to setWindowIcon() in the taskbar as well.
+    if sys.platform == "win32":
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            "com.robotine.controller"
+        )
+
     app = QApplication(sys.argv)
     engine = QQmlApplicationEngine()
 
-    engine.addImportPath(QDir.current().filePath("qml"))
+    engine.addImportPath(str(RESOURCE_DIR / "qml"))
 
     # Use .ico cross-platform at runtime: Qt's .icns handler crashes
     # setWindowIcon on macOS in this Qt build. The .icns is kept in
-    # assets/app/ for future .app bundling via Info.plist.
-    app.setWindowIcon(QIcon("assets/app/icon.ico"))
+    # assets/app/ for the .app bundle (referenced via Info.plist).
+    app.setWindowIcon(QIcon(str(RESOURCE_DIR / "assets" / "app" / "icon.ico")))
 
     robot = RobotSingletonRCP("192.168.167.199")
     # robot.RobotEnable(True)
@@ -47,7 +66,7 @@ def main() -> None:
     controller = PositionController()
     engine.rootContext().setContextProperty("PositionController", controller)
 
-    qml_file = QUrl.fromLocalFile("qml/main.qml")
+    qml_file = QUrl.fromLocalFile(str(RESOURCE_DIR / "qml" / "main.qml"))
     engine.load(qml_file)
 
     if not engine.rootObjects():
