@@ -4,6 +4,7 @@ from repository.positionJ_repository import PositionJRepository
 from model.position_model import PositionModel
 from model.positionJ_model import PositionJModel
 from services.robot_service import RobotService
+from services.gamepad_service import GamepadService
 
 _SERVICE = RobotService()
 
@@ -15,6 +16,14 @@ class PositionController(QObject):
     robotStatusChanged = Signal(bool, str)  # connected, ip
     robotStatesUpdated = Signal(dict)       # estop, collision, enable
     jogStateUpdated    = Signal(dict)       # tcp[6] + joints[6] from state pkg
+
+    # ── Gamepad signals → QML ─────────────────────────────────────────────────
+    gamepadConnected   = Signal(bool)    # connection status
+    gamepadStepChanged = Signal(float)   # LB/RB pressed → new step value
+    gamepadModeToggle  = Signal()        # Start pressed → flip Tool/Joints
+
+    # ── Gamepad step presets (mirrors QML stepPresets) ────────────────────────
+    _STEP_PRESETS = [1, 5, 10, 50, 100]
 
     def __init__(self):
         super().__init__()
@@ -29,6 +38,27 @@ class PositionController(QObject):
         self._status_timer.setInterval(200)
         self._status_timer.timeout.connect(self._poll_robot_states)
         self._status_timer.start()
+
+        # ── Gamepad state ─────────────────────────────────────────────────────
+        self._jog_mode    = False   # False = Tool/Cartesian, True = Joints
+        self._jog_step    = 10.0   # current step size (mirrors QML jogStep)
+        self._step_idx    = 2      # index into _STEP_PRESETS
+
+        # Last scaled stick/hat values — used to detect "return to centre"
+        self._left_x  = 0.0
+        self._left_y  = 0.0
+        self._right_x = 0.0
+        self._right_y = 0.0
+        self._hat_x   = 0
+        self._hat_y   = 0
+
+        # Gamepad service (runs on main thread via its own QTimer)
+        self._gamepad = GamepadService(self)
+        self._gamepad.connected_changed.connect(self._on_gamepad_connected)
+        self._gamepad.left_stick_changed.connect(self._on_left_stick)
+        self._gamepad.right_stick_changed.connect(self._on_right_stick)
+        self._gamepad.hat_changed.connect(self._on_hat)
+        self._gamepad.button_pressed.connect(self._on_button)
 
     @Slot(str)
     def connect_robot(self, ip: str) -> None:
@@ -140,6 +170,122 @@ class PositionController(QObject):
     @Slot()
     def stop_motion(self):
         _SERVICE.stop_motion()
+
+    # ── Gamepad QML sync slots ────────────────────────────────────────────────
+
+    @Slot(bool)
+    def set_jog_mode(self, is_joint: bool) -> None:
+        """Called by QML when the Tool / Joints tab changes."""
+        self._jog_mode = is_joint
+
+    @Slot(float)
+    def set_jog_step(self, step: float) -> None:
+        """Called by QML when a step preset is selected."""
+        self._jog_step = step
+        if step in self._STEP_PRESETS:
+            self._step_idx = self._STEP_PRESETS.index(step)
+
+    # ── Gamepad internal handlers ─────────────────────────────────────────────
+
+    def _on_gamepad_connected(self, connected: bool) -> None:
+        self.gamepadConnected.emit(connected)
+
+    def _on_left_stick(self, x: float, y: float) -> None:
+        self._left_x = x
+        self._left_y = y
+        self._apply_gamepad_jog()
+
+    def _on_right_stick(self, x: float, y: float) -> None:
+        self._right_x = x
+        self._right_y = y
+        self._apply_gamepad_jog()
+
+    def _on_hat(self, hx: int, hy: int) -> None:
+        self._hat_x = hx
+        self._hat_y = hy
+        self._apply_gamepad_jog()
+
+    def _apply_gamepad_jog(self) -> None:
+        """Single decision point for all gamepad jog inputs.
+
+        Builds a list of every currently-active axis / joint, picks the one
+        with the highest deflection magnitude, and issues exactly one
+        jog_cartesian / jog_joint call — or stop_motion when everything is
+        at centre.  This mirrors press-and-hold on the on-screen buttons:
+        the command is re-issued every 50 ms while the input stays active,
+        and stop_motion is called once when ALL inputs return to centre.
+        """
+        # Each entry: (kind, axis_or_idx, direction, magnitude)
+        # kind: 'c' = cartesian, 'j' = joint
+        candidates: list[tuple[str, str | int, int, float]] = []
+
+        lx  = self._left_x
+        ly  = self._left_y   # pygame up = negative; invert for robot convention
+        rx  = self._right_x
+        ry  = self._right_y  # same inversion
+        hx  = self._hat_x
+        hy  = self._hat_y
+
+        if not self._jog_mode:
+            # ── Tool / Cartesian ──────────────────────────────────────────────
+            if abs(lx) > 0:
+                candidates.append(('c', 'x',  1 if lx > 0 else -1, abs(lx)))
+            if abs(ly) > 0:
+                candidates.append(('c', 'y',  1 if ly < 0 else -1, abs(ly)))  # invert
+            if abs(rx) > 0:
+                candidates.append(('c', 'rz', 1 if rx > 0 else -1, abs(rx)))
+            if abs(ry) > 0:
+                candidates.append(('c', 'z',  1 if ry < 0 else -1, abs(ry)))  # invert
+            if hx != 0:
+                candidates.append(('c', 'ry', hx, 1.0))
+            if hy != 0:
+                candidates.append(('c', 'rx', hy, 1.0))
+        else:
+            # ── Joints ───────────────────────────────────────────────────────
+            if abs(lx) > 0:
+                candidates.append(('j', 0, 1 if lx > 0 else -1, abs(lx)))
+            if abs(ly) > 0:
+                candidates.append(('j', 1, 1 if ly < 0 else -1, abs(ly)))  # invert
+            if abs(rx) > 0:
+                candidates.append(('j', 2, 1 if rx > 0 else -1, abs(rx)))
+            if abs(ry) > 0:
+                candidates.append(('j', 3, 1 if ry < 0 else -1, abs(ry)))  # invert
+            if hx != 0:
+                candidates.append(('j', 4, hx, 1.0))
+            if hy != 0:
+                candidates.append(('j', 5, hy, 1.0))
+
+        if not candidates:
+            # All inputs at centre — stop exactly as releasing an on-screen button would
+            self.stop_motion()
+            return
+
+        # Pick the most-deflected input so only one command is issued per tick
+        kind, axis_or_idx, direction, magnitude = max(candidates, key=lambda c: c[3])
+        step = self._jog_step * magnitude
+
+        if kind == 'c':
+            self.jog_cartesian(axis_or_idx, direction, step)  # type: ignore[arg-type]
+        else:
+            self.jog_joint(int(axis_or_idx), direction, step)
+
+    def _on_button(self, btn: int) -> None:
+        """Handle rising-edge button presses from the gamepad."""
+        from services.gamepad_service import BTN_LB, BTN_RB, BTN_START
+
+        if btn == BTN_LB:
+            self._step_idx = max(0, self._step_idx - 1)
+            self._jog_step = float(self._STEP_PRESETS[self._step_idx])
+            self.gamepadStepChanged.emit(self._jog_step)
+
+        elif btn == BTN_RB:
+            self._step_idx = min(len(self._STEP_PRESETS) - 1, self._step_idx + 1)
+            self._jog_step = float(self._STEP_PRESETS[self._step_idx])
+            self.gamepadStepChanged.emit(self._jog_step)
+
+        elif btn == BTN_START:
+            self._jog_mode = not self._jog_mode
+            self.gamepadModeToggle.emit()
 
     @Slot(str, int, float)
     def jog_cartesian(self, axis: str, direction: int, step: float) -> None:

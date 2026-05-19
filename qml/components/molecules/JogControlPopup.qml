@@ -14,11 +14,15 @@ Window {
     height: mainCol.implicitHeight + 32  // 16px top + content + 16px bottom
 
     // ── State ─────────────────────────────────────────────────────────────────
-    property var  tcpPose:    [0, 0, 0, 0, 0, 0]
-    property var  jointPose:  [0, 0, 0, 0, 0, 0]
-    property bool isJointMode: false
-    property real jogStep:    10
-    property var  stepPresets: [1, 5, 10, 50, 100]
+    property var  tcpPose:         [0, 0, 0, 0, 0, 0]
+    property var  jointPose:       [0, 0, 0, 0, 0, 0]
+    property bool isJointMode:     false
+    property real jogStep:         10
+    property var  stepPresets:     [1, 5, 10, 50, 100]
+    property bool gamepadConnected: false
+
+    // Notify Python when mode changes so gamepad routing stays in sync
+    onIsJointModeChanged: PositionController.set_jog_mode(isJointMode)
 
     // Drag tracking
     property real _dx: 0
@@ -30,12 +34,30 @@ Window {
         y = (Screen.height - height) / 2
     }
 
-    // ── Position — Python QTimer pushes updates at 100 ms, no QML timer needed
+    // ── Python → QML signal bindings ──────────────────────────────────────────
     Connections {
         target: PositionController
+
+        // Position state (100 ms polling from Python QTimer)
         function onJogStateUpdated(state) {
             jogWindow.tcpPose   = state["tcp"]
             jogWindow.jointPose = state["joints"]
+        }
+
+        // Gamepad connection status
+        function onGamepadConnected(connected) {
+            jogWindow.gamepadConnected = connected
+        }
+
+        // LB / RB pressed on gamepad — update step preset
+        function onGamepadStepChanged(step) {
+            jogWindow.jogStep = step
+            PositionController.set_jog_step(step)
+        }
+
+        // Start pressed on gamepad — flip mode tab
+        function onGamepadModeToggle() {
+            jogWindow.isJointMode = !jogWindow.isJointMode
         }
     }
 
@@ -92,6 +114,34 @@ Window {
                     }
 
                     Item { Layout.fillWidth: true }
+
+                    // Gamepad connection indicator
+                    Rectangle {
+                        height: 20; radius: 10
+                        width: gpRow.implicitWidth + 12
+                        color: jogWindow.gamepadConnected ? "#ECFDF5" : "#F3F4F6"
+                        border.color: jogWindow.gamepadConnected ? "#6EE7B7" : "#E5E7EB"
+                        border.width: 1
+
+                        Row {
+                            id: gpRow
+                            anchors.centerIn: parent
+                            spacing: 4
+
+                            Rectangle {
+                                width: 6; height: 6; radius: 3
+                                anchors.verticalCenter: parent.verticalCenter
+                                color: jogWindow.gamepadConnected ? "#10B981" : "#9CA3AF"
+                            }
+
+                            Text {
+                                text: jogWindow.gamepadConnected ? "Gamepad" : "No Gamepad"
+                                font.pixelSize: 10
+                                color: jogWindow.gamepadConnected ? "#065F46" : "#6B7280"
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+                    }
 
                     // Close button
                     Rectangle {
@@ -182,7 +232,10 @@ Window {
                         MouseArea {
                             id: sm; anchors.fill: parent; hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: jogWindow.jogStep = modelData
+                            onClicked: {
+                                jogWindow.jogStep = modelData
+                                PositionController.set_jog_step(modelData)
+                            }
                         }
                     }
                 }

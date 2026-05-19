@@ -12,7 +12,8 @@ dependencies = [
     "numpy",
     "cython",
     "setuptools>=61.0",
-    "wheel"
+    "wheel",
+    "pygame>=2.5.0"
 ]
 
 [build-system]
