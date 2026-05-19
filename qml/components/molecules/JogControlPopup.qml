@@ -28,8 +28,11 @@ Window {
     property real _dx: 0
     property real _dy: 0
 
-    // Position on first show
+    // Position on first show; clamp width to screen if the display is very narrow.
     Component.onCompleted: {
+        let maxW = Screen.desktopAvailableWidth - 32
+        if (maxW > 0 && maxW < width)
+            width = maxW
         x = Screen.width  - width  - 40
         y = (Screen.height - height) / 2
     }
@@ -245,8 +248,8 @@ Window {
 
             Rectangle { height: 1; color: "#E5E7EB"; Layout.fillWidth: true }
 
-            // ── TOOL MODE ─────────────────────────────────────────────────────
-            RowLayout {
+            // ── TOOL MODE (readout wraps below when window is narrow) ─────────
+            Flow {
                 visible: !jogWindow.isJointMode
                 Layout.fillWidth: true
                 spacing: 12
@@ -304,8 +307,6 @@ Window {
                         }
                     }
                 }
-
-                Item { Layout.fillWidth: true }
 
                 // Cartesian readout — color-coded to match buttons
                 GridLayout {

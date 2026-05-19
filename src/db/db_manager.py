@@ -5,21 +5,34 @@ from contextlib import contextmanager
 from typing import Generator, Any
 
 class DB_Manager:
-    _custom_db_path = None  # class-level override shared by all instances
+    # The database path is selected at runtime via the file picker; there is no
+    # default location and no DB file ships with the project.
+    _custom_db_path: Path | None = None
 
     @classmethod
-    def set_custom_path(cls, path: str) -> None:
-        cls._custom_db_path = Path(path)
+    def set_custom_path(cls, path: str | Path | None) -> None:
+        cls._custom_db_path = Path(path) if path else None
 
-    def __init__(self, db_name: str = "points.db"):
+    @classmethod
+    def has_path(cls) -> bool:
+        return cls._custom_db_path is not None
+
+    @classmethod
+    def current_path(cls) -> Path | None:
+        return cls._custom_db_path
+
+    def __init__(self):
         self._base_dir = Path(__file__).resolve().parent
         self._sql_dir = self._base_dir / "../../sql"
         self._migrations_dir = self._sql_dir / "migrations"
-        self._default_db_path = self._base_dir / db_name
 
     @property
-    def _db_path(self):
-        return DB_Manager._custom_db_path if DB_Manager._custom_db_path is not None else self._default_db_path
+    def _db_path(self) -> Path:
+        if DB_Manager._custom_db_path is None:
+            raise RuntimeError(
+                "No database selected. Pick a .db file via the UI's 'Select dB' button."
+            )
+        return DB_Manager._custom_db_path
 
     @contextmanager
     def _connect(self) -> Generator[sqlite3.Connection, None, None]:

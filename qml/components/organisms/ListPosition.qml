@@ -2,18 +2,22 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Dialogs
+import QtQuick.Window 2.15
 import "../molecules"
 import "../atoms"
 
 Rectangle {
     id: positionController
     Layout.fillWidth: true
-    Layout.preferredHeight: 800
+    Layout.fillHeight: true
     radius: 30
     color: "transparent"
 
     // Master list – all loaded poses, never filtered
     property var allPoses: []
+
+    // Filename shown in the DB picker chip; updated from FileDialog/Python.
+    property string currentDbName: "No database selected"
 
     ListModel { id: savedPositionsModel }
 
@@ -178,12 +182,9 @@ Rectangle {
             title: "Select Points dB"
             nameFilters: ["SQLite databases (*.db)", "All files (*)"]
             fileMode: FileDialog.OpenFile
-            onAccepted: {
-                let path = selectedFile.toString()
-                path = path.replace(/^file:\/\/\//, "/").replace(/^file:\/\//, "//")
-                PositionController.set_database(path)
-                dbLabel.text = path.split("/").pop()
-            }
+            // Pass the file:// URL straight to Python; QUrl.toLocalFile there
+            // handles the macOS / Linux / Windows path conventions uniformly.
+            onAccepted: PositionController.set_database(selectedFile.toString())
         }
 
         QtObject {
@@ -201,7 +202,14 @@ Rectangle {
         Connections {
             target: PositionController
             function onRobotStatusChanged(connected, ip) { ipStatus.connected = connected }
-            function onDatabaseChanged(path) { dbLabel.text = path.split("/").pop() }
+            function onDatabaseChanged(path) {
+                if (!path) {
+                    positionController.currentDbName = "No database selected"
+                    return
+                }
+                let parts = path.split(/[\/\\]/)  // handles both POSIX and Windows separators
+                positionController.currentDbName = parts[parts.length - 1] || path
+            }
             function onRobotStatesUpdated(states) {
                 robotStates.estop     = states["estop"]
                 robotStates.collision = states["collision"]
@@ -209,427 +217,72 @@ Rectangle {
             }
         }
 
-        // ── Row 1: title left · speed selector · IP selector right ──────────
-        RowLayout {
+        // ── Row 1: title + status chips — wraps on narrow widths ────────────
+        Flow {
             Layout.fillWidth: true
             Layout.rightMargin: 20
-            spacing: 10
+            spacing: 16
 
             Title { titleText: "Point List" }
 
-            Item { Layout.fillWidth: true }
+            SpeedChip {}
 
-            // ── Speed selector ────────────────────────────────────────────────
-            Column {
-                Layout.alignment: Qt.AlignVCenter
-                spacing: 4
-
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: "SPEED"
-                    font.pixelSize: 9
-                    font.bold: true
-                    font.letterSpacing: 1.2
-                    color: "#888"
-                }
-
-                Rectangle {
-                    id: speedBox
-                    width: 148
-                    height: 36
-                    radius: 18
-                    color: "#ffffff"
-                    border.color: "#6C757D"
-                    border.width: 1.5
-
-                    property int currentSpeed: 100
-                    property var presets: [10, 25, 50, 75, 100]
-
-                    function applySpeed(val) {
-                        val = Math.max(1, Math.min(100, val))
-                        currentSpeed = val
-                        speedField.text = val + "%"
-                        PositionController.set_speed(val)
-                    }
-
-                    function prevPreset() {
-                        for (let i = presets.length - 1; i >= 0; i--) {
-                            if (presets[i] < currentSpeed) { applySpeed(presets[i]); return }
-                        }
-                        applySpeed(presets[0])
-                    }
-
-                    function nextPreset() {
-                        for (let i = 0; i < presets.length; i++) {
-                            if (presets[i] > currentSpeed) { applySpeed(presets[i]); return }
-                        }
-                        applySpeed(presets[presets.length - 1])
-                    }
-
-                    // − button
-                    Rectangle {
-                        id: minusBtnArea
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.left: parent.left
-                        anchors.leftMargin: 6
-                        width: 24; height: 24; radius: 12
-                        color: minusMouse.containsMouse ? "#F0F0F0" : "transparent"
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: "−"
-                            font.pixelSize: 16
-                            font.bold: true
-                            color: "#555"
-                        }
-
-                        MouseArea {
-                            id: minusMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: speedBox.prevPreset()
-                        }
-                    }
-
-                    // speed text field
-                    TextField {
-                        id: speedField
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.left: minusBtnArea.right
-                        anchors.right: plusBtnArea.left
-                        anchors.leftMargin: 2
-                        anchors.rightMargin: 2
-                        height: parent.height
-                        text: "100%"
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        font.pixelSize: 13
-                        font.bold: true
-                        color: "#333"
-                        background: Rectangle { color: "transparent" }
-
-                        onEditingFinished: {
-                            let raw = text.replace(/%/g, "").trim()
-                            let val = parseInt(raw)
-                            if (!isNaN(val) && val >= 1 && val <= 100)
-                                speedBox.applySpeed(val)
-                            else
-                                text = speedBox.currentSpeed + "%"
-                        }
-
-                        Keys.onReturnPressed: editingFinished()
-                    }
-
-                    // + button
-                    Rectangle {
-                        id: plusBtnArea
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.right: parent.right
-                        anchors.rightMargin: 6
-                        width: 24; height: 24; radius: 12
-                        color: plusMouse.containsMouse ? "#F0F0F0" : "transparent"
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: "+"
-                            font.pixelSize: 16
-                            font.bold: true
-                            color: "#555"
-                        }
-
-                        MouseArea {
-                            id: plusMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: speedBox.nextPreset()
-                        }
-                    }
+            IpChip {
+                connected: ipStatus.connected
+                onConnectRequested: (ip) => {
+                    ipStatus.connected = false
+                    PositionController.connect_robot(ip)
                 }
             }
 
-            Item { Layout.preferredWidth: 20 }
-
-            // ── IP selector ───────────────────────────────────────────────────
-            Column {
-                Layout.alignment: Qt.AlignVCenter
-                spacing: 4
-
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: "ROBOT IP"
-                    font.pixelSize: 9
-                    font.bold: true
-                    font.letterSpacing: 1.2
-                    color: "#888"
-                }
-
-                Rectangle {
-                    id: ipInputBox
-                    width: 175
-                    height: 36
-                    radius: 18
-                    color: "#ffffff"
-                    border.color: ipStatus.connected ? "#28A745" : "#DC3545"
-                    border.width: 1.5
-
-                    // status dot — pinned left
-                    Rectangle {
-                        id: statusDot
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.left: parent.left
-                        anchors.leftMargin: 12
-                        width: 8; height: 8; radius: 4
-                        color: ipStatus.connected ? "#28A745" : "#DC3545"
-                    }
-
-                    // IP field — centered in the pill, equal padding both sides
-                    TextField {
-                        id: ipField
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.leftMargin: 28
-                        anchors.rightMargin: 28
-                        height: parent.height
-                        text: "192.168.167.199"
-                        inputMask: "000.000.000.000"
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        font.pixelSize: 13
-                        font.family: "monospace"
-                        color: "#333"
-                        background: Rectangle { color: "transparent" }
-
-                        onEditingFinished: {
-                            let ip = text.replace(/_/g, "").replace(/\s/g, "")
-                            ip = ip.split(".").map(function(o){ return parseInt(o) || 0 }).join(".")
-                            ipStatus.connected = false
-                            PositionController.connect_robot(ip)
-                        }
-                    }
-
-                    Component.onCompleted: {
-                        let ip = ipField.text.replace(/_/g, "").replace(/\s/g, "")
-                        ip = ip.split(".").map(function(o){ return parseInt(o) || 0 }).join(".")
-                        PositionController.connect_robot(ip)
-                    }
-                }
+            RobotStatesChip {
+                estop:     robotStates.estop
+                collision: robotStates.collision
+                enable:    robotStates.enable
             }
 
-            Item { Layout.preferredWidth: 20 }
-
-            // ── Robot state indicators ────────────────────────────────────────
-            Column {
-                Layout.alignment: Qt.AlignVCenter
-                spacing: 6
-
-                Repeater {
-                    model: [
-                        { label: "E-STOP",    val: robotStates.estop,     activeColor: "#DC3545" },
-                        { label: "COLLISION", val: robotStates.collision,  activeColor: "#FD7E14" },
-                        { label: "ENABLE",    val: robotStates.enable,     activeColor: "#28A745" }
-                    ]
-
-                    Row {
-                        spacing: 7
-
-                        Rectangle {
-                            width: 8; height: 8; radius: 4
-                            anchors.verticalCenter: parent.verticalCenter
-                            color: {
-                                if (modelData.val < 0)  return "#CCCCCC"
-                                if (modelData.label === "ENABLE")
-                                    return modelData.val === 1 ? modelData.activeColor : "#CCCCCC"
-                                return modelData.val === 1 ? modelData.activeColor : "#28A745"
-                            }
-                        }
-
-                        Text {
-                            text: modelData.label
-                            font.pixelSize: 10
-                            font.bold: true
-                            font.letterSpacing: 0.8
-                            color: "#555"
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
-                }
+            RobotActionsChip {
+                enableState: robotStates.enable
+                onResetClicked: PositionController.reset_all_error()
+                onToggleEnableClicked: (newState) => PositionController.robot_enable(newState)
             }
 
-            Item { Layout.preferredWidth: 16 }
-
-            // ── Reset / Enable buttons ────────────────────────────────────────
-            Column {
-                Layout.alignment: Qt.AlignVCenter
-                spacing: 6
-
-                // Reset button
-                Rectangle {
-                    width: 72
-                    height: 24
-                    radius: 12
-                    color: resetMouse.containsMouse ? "#C0392B" : "#DC3545"
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "Reset"
-                        font.pixelSize: 10
-                        font.bold: true
-                        color: "#ffffff"
-                        font.letterSpacing: 0.5
-                    }
-
-                    MouseArea {
-                        id: resetMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: PositionController.reset_all_error()
-                    }
-                }
-
-                // Enable / Disable button
-                Rectangle {
-                    width: 72
-                    height: 24
-                    radius: 12
-                    color: {
-                        if (robotStates.enable === 1)
-                            return enableMouse.containsMouse ? "#E0A800" : "#FFC107"
-                        return enableMouse.containsMouse ? "#1E7E34" : "#28A745"
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: robotStates.enable === 1 ? "Disable" : "Enable"
-                        font.pixelSize: 10
-                        font.bold: true
-                        color: robotStates.enable === 1 ? "#333" : "#ffffff"
-                        font.letterSpacing: 0.5
-                    }
-
-                    MouseArea {
-                        id: enableMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: PositionController.robot_enable(robotStates.enable === 1 ? 0 : 1)
-                    }
-                }
-            }
-
-            Item { Layout.preferredWidth: 16 }
-
-            // ── Jog Control button ────────────────────────────────────────────
-            Rectangle {
-                Layout.alignment: Qt.AlignVCenter
-                width: 72
-                height: 54
-                radius: 12
-                color: jogCtrlMouse.containsMouse ? "#4F46E5" : "#6366F1"
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "JOG"
-                    font.pixelSize: 14
-                    font.bold: true
-                    font.letterSpacing: 2
-                    color: "#FFFFFF"
-                }
-
-                MouseArea {
-                    id: jogCtrlMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: jogControlPopup.visible ? jogControlPopup.hide() : jogControlPopup.show()
-                }
+            JogToggleButton {
+                onClicked: jogControlPopup.visible ? jogControlPopup.hide() : jogControlPopup.show()
             }
         }
 
         JogControlPopup { id: jogControlPopup }
 
-        // ── Row 2: search left · filename | Trocar DB | Nova Posição right ─
-        RowLayout {
+        // ── Row 2: search · DB picker · New Point — wraps on narrow widths ──
+        Flow {
             id: buttonsControllers
             Layout.fillWidth: true
-            Layout.alignment: Qt.AlignVCenter
-            spacing: 0
+            spacing: 12
 
             TextInputBar {
                 id: positionInputBar
+                width: parent.width >= 800
+                         ? Math.max(280, parent.width - 440)
+                         : parent.width
+                height: 55
                 buttonName: "Search"
                 placeholder: "Type point name..."
                 onTextChanged: applyFilter(currentText)
                 onConnectClicked: (text) => applyFilter(text)
             }
 
-            Item { Layout.fillWidth: true }
-
-            // filename + DB picker — one pill matching the search bar
-            Rectangle {
-                Layout.preferredHeight: 55
-                Layout.alignment: Qt.AlignVCenter
-                Layout.minimumWidth: 260
-                Layout.maximumWidth: 340
-                radius: height / 2
-                color: "#ffffff"
-
-                RowLayout {
-                    anchors.fill: parent
-                    spacing: 8
-
-                    Label {
-                        id: dbLabel
-                        Layout.fillWidth: true
-                        Layout.leftMargin: 16
-                        Layout.alignment: Qt.AlignVCenter
-                        text: "points.db"
-                        color: "#a0a0a0"
-                        font.pixelSize: 13
-                        elide: Text.ElideLeft
-                    }
-
-                    Button {
-                        id: dbPickerBtn
-                        text: "Select dB"
-                        Layout.preferredWidth: 110
-                        Layout.preferredHeight: 45
-                        Layout.rightMargin: 5
-                        Layout.alignment: Qt.AlignVCenter
-
-                        background: Rectangle {
-                            radius: height / 2
-                            color: dbPickerBtn.down    ? "#17807E"
-                                 : dbPickerBtn.hovered ? "#20B2AA"
-                                 :                      "#1CA8A4"
-                        }
-
-                        contentItem: Text {
-                            anchors.fill: parent
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment:   Text.AlignVCenter
-                            text: dbPickerBtn.text
-                            color: "white"
-                            font.pixelSize: 16
-                        }
-
-                        onClicked: dbFilePicker.open()
-                    }
-                }
+            DbPicker {
+                dbName: positionController.currentDbName
+                onSelectClicked: dbFilePicker.open()
             }
 
             CommonBtn {
                 text: "New Point"
                 style: "primary"
-                Layout.preferredHeight: 50
-                Layout.preferredWidth: 130
-                Layout.alignment: Qt.AlignVCenter
-                onClicked: {
-                    addPositionPopup.openWith("", "", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-                }
+                width: 130
+                height: 50
+                onClicked: addPositionPopup.openWith("", "", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
             }
         }
 
@@ -736,8 +389,66 @@ Rectangle {
         CommonBtn {
             text: "Delete List"
             style: "danger"
-            onClicked: {
-                PositionController.delete_all_poses()
+            visible: Window.window ? Window.window.deleteUnlocked : false
+            onClicked: confirmDeletePopup.open()
+        }
+    }
+
+    Popup {
+        id: confirmDeletePopup
+        modal: true
+        focus: true
+        parent: Overlay.overlay
+        anchors.centerIn: Overlay.overlay
+        closePolicy: Popup.CloseOnEscape
+        padding: 24
+
+        width: 400
+
+        background: Rectangle {
+            color: "#ffffff"
+            radius: 12
+            border.color: "#D1D5DB"
+            border.width: 1
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 14
+
+            Label {
+                text: "Delete all poses?"
+                font.pixelSize: 18
+                font.bold: true
+                color: "#111827"
+            }
+
+            Label {
+                text: "This will permanently remove every saved pose from the current database. This cannot be undone."
+                font.pixelSize: 13
+                color: "#6B7280"
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 4
+                spacing: 8
+
+                Item { Layout.fillWidth: true }
+
+                Button {
+                    text: "Cancel"
+                    onClicked: confirmDeletePopup.close()
+                }
+                Button {
+                    text: "Delete"
+                    highlighted: true
+                    onClicked: {
+                        PositionController.delete_all_poses()
+                        confirmDeletePopup.close()
+                    }
+                }
             }
         }
     }

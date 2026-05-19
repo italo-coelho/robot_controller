@@ -131,12 +131,26 @@ class PositionController(QObject):
             print(f"[PositionController] Failed to set speed: {e}")
 
     @Slot(str)
-    def set_database(self, path: str) -> None:
-        """Switch to an external .db file and reload all poses."""
+    def set_database(self, path_or_url: str) -> None:
+        """Switch to an external .db file and reload all poses.
+
+        Accepts either a plain filesystem path or a ``file://`` URL — the QML
+        FileDialog hands us the latter, and QUrl.toLocalFile gives us a clean
+        path on every OS (handles the leading-slash quirk on Windows drives).
+        """
+        from PySide6.QtCore import QUrl, QSettings
         from db.db_manager import DB_Manager
+
+        if path_or_url.startswith("file:"):
+            path = QUrl(path_or_url).toLocalFile()
+        else:
+            path = path_or_url
+
         DB_Manager.set_custom_path(path)
-        db = DB_Manager()
-        db.init_database()
+        DB_Manager().init_database()
+
+        QSettings().setValue("last_db_path", path)
+
         self.databaseChanged.emit(path)
         self.load_poses()
     
@@ -367,6 +381,16 @@ class PositionController(QObject):
 
     @Slot()
     def load_poses(self):
+        from db.db_manager import DB_Manager
+        if not DB_Manager.has_path():
+            # No DB selected yet — emit empty list + empty path so the UI clears
+            # both the pose list and the picker label.
+            self.databaseChanged.emit("")
+            self.posesLoaded.emit([])
+            return
+
+        self.databaseChanged.emit(str(DB_Manager.current_path()))
+
         cartesian_poses = self.repo.get_all_poses()
         joint_poses = self.repoJ.get_all_poses()
         
