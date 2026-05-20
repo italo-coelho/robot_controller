@@ -1,0 +1,199 @@
+<!doctype html>
+<!--
+  Portable URDF viewer with live joint updates over WebSocket.
+
+  URL parameters:
+    host        ws host:port              e.g. ?host=192.168.167.199:9999
+    urdf        URDF path                 default ./model/urdf/fr3v6.urdf
+    up          up axis                   default +Z
+    highlight   joint highlight color     default #FE6900
+    hud         0 to hide overlay         default 1
+    autoconnect 0 to skip auto-connect    default 1 if host given
+
+  JS API (window.RobotViewer):
+    connect(host)            open ws://host
+    disconnect()             close socket
+    setJoints({j1: deg,...}) drive the model directly (degrees)
+    getJoints()              last known joint map (degrees)
+    isConnected()
+    on(evt, cb) / off(evt, cb)
+       evt = 'joints' | 'status' | 'joint-mouseover' | 'joint-mouseout'
+           | 'manipulate-start' | 'manipulate-end'
+
+  QWebChannel: if window.qt.webChannelTransport exists at load, the page
+  registers a "bridge" channel object and forwards every joint frame to
+  bridge.onJoints(jsonString) — see pyside6_example.py.
+-->
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Robot viewer</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #1e1e22; color: #ddd; font: 13px/1.4 system-ui, sans-serif; }
+    /* Suppress the macOS / Chromium focus ring — when embedded with rounded
+       corners, the outline gets clipped at the corners and looks like a
+       broken border. */
+    html, body, #viewer, canvas, :focus, :focus-visible { outline: none !important; }
+    #viewer { width: 100vw; height: 100vh; display: block; }
+    .panel { position: fixed; padding: 8px 10px; background: rgba(0,0,0,.45); border-radius: 6px; }
+    #hud  { top: 10px; left: 12px; pointer-events: none; }
+    #live { top: 10px; right: 12px; min-width: 220px; font-family: ui-monospace, monospace; }
+    #hud b { color: var(--accent, #FE6900); }
+    .row { display: flex; justify-content: space-between; gap: 12px; }
+    .ok  { color: #6fdc6f; }
+    .bad { color: #ff7676; }
+    #live input { width: 170px; background: #222; border: 1px solid #444; color: #eee; padding: 2px 4px; }
+    #live button { background: var(--accent, #FE6900); border: 0; color: #111; padding: 2px 8px; cursor: pointer; }
+    body.no-hud .panel { display: none; }
+  </style>
+
+  <script src="./lib/three.js"></script>
+  <script src="./lib/OrbitControls.js"></script>
+  <script src="./lib/TransformControls.js"></script>
+  <script src="./lib/STLLoader.js"></script>
+  <script src="./lib/ColladaLoader.js"></script>
+  <script src="./lib/URDFLoader.js"></script>
+  <script src="./lib/urdf-viewer-element.js"></script>
+  <script src="./lib/urdf-manipulator-element.js"></script>
+</head>
+<body>
+  <div id="hud" class="panel">
+    Drag a <b>link</b> to rotate its joint &middot; drag empty space to orbit &middot; wheel to zoom
+    <div id="joint"></div>
+  </div>
+
+  <div id="live" class="panel">
+    <div class="row">
+      <span>ws://</span>
+      <input id="host" />
+      <button id="connect">connect</button>
+    </div>
+    <div class="row"><span>status</span><span id="status" class="bad">disconnected</span></div>
+    <div class="row"><span>frames</span><span id="frames">0</span></div>
+    <div id="joints"></div>
+  </div>
+
+  <urdf-viewer id="viewer" display-shadow></urdf-viewer>
+
+  <script>
+  (() => {
+    customElements.define('urdf-viewer', URDFManipulator);
+
+    const params = new URLSearchParams(location.search);
+    const cfg = {
+      host:        params.get('host')        || '',
+      urdf:        params.get('urdf')        || './model/urdf/fr3v6.urdf',
+      up:          params.get('up')          || '+Z',
+      highlight:   params.get('highlight')   || '#FE6900',
+      hud:         params.get('hud')         !== '0',
+      autoconnect: (params.get('autoconnect') ?? '1') !== '0',
+      zoom:        parseFloat(params.get('zoom') ?? '1.3'),
+    };
+
+    if (!cfg.hud) document.body.classList.add('no-hud');
+    document.documentElement.style.setProperty('--accent', cfg.highlight);
+
+    const v = document.getElementById('viewer');
+    v.setAttribute('up', cfg.up);
+    v.setAttribute('highlight-color', cfg.highlight);
+    v.setAttribute('real', cfg.urdf);
+
+    const statusEl = document.getElementById('status');
+    const framesEl = document.getElementById('frames');
+    const jointsEl = document.getElementById('joints');
+    const hostEl   = document.getElementById('host');
+    const labelEl  = document.getElementById('joint');
+    hostEl.value = cfg.host;
+
+    const DEG2RAD = Math.PI / 180;
+    const subs = {};                            // event subscribers
+    const fire = (name, payload) => (subs[name] || []).forEach(cb => { try { cb(payload); } catch (e) { console.error(e); } });
+
+    let ws = null, frames = 0, lastJoints = {};
+
+    function setStatus(s, cls) {
+      statusEl.textContent = s;
+      statusEl.className = cls || '';
+      fire('status', s);
+    }
+
+    function applyJoints(now) {
+      lastJoints = now;
+      for (const name in now) {
+        v.setAngle(name, now[name] * DEG2RAD);
+        v.setVirtualAngle(name, now[name] * DEG2RAD);
+      }
+      jointsEl.innerHTML = Object.entries(now)
+        .map(([k, deg]) => `<div class="row"><span>${k}</span><span>${(+deg).toFixed(2)}°</span></div>`)
+        .join('');
+      fire('joints', now);
+      if (window._bridge && window._bridge.onJoints) {
+        window._bridge.onJoints(JSON.stringify(now));
+      }
+    }
+
+    function connect(host) {
+      if (host) hostEl.value = host;
+      if (ws) { try { ws.close(); } catch (_) {} }
+      if (!hostEl.value) return;
+      setStatus('connecting…');
+      ws = new WebSocket(`ws://${hostEl.value}`);
+      ws.onopen    = () => setStatus('connected', 'ok');
+      ws.onerror   = () => setStatus('error', 'bad');
+      ws.onclose   = () => setStatus('closed', 'bad');
+      ws.onmessage = (msg) => {
+        let data; try { data = JSON.parse(msg.data); } catch { return; }
+        if (!data || typeof data !== 'object' || !data.joints) return;
+        frames++; framesEl.textContent = frames;
+        applyJoints(data.joints);
+      };
+    }
+
+    function disconnect() { if (ws) ws.close(); ws = null; }
+
+    // Forward picker events to subscribers
+    ['joint-mouseover', 'joint-mouseout', 'manipulate-start', 'manipulate-end'].forEach(name => {
+      v.addEventListener(name, e => {
+        if (name === 'joint-mouseover') labelEl.textContent = 'hover: ' + e.detail;
+        if (name === 'joint-mouseout')  labelEl.textContent = '';
+        if (name === 'manipulate-start') labelEl.textContent = 'drag: ' + e.detail;
+        fire(name, e.detail);
+      });
+    });
+
+    // Public API
+    window.RobotViewer = {
+      connect, disconnect,
+      setJoints: applyJoints,
+      getJoints: () => ({ ...lastJoints }),
+      isConnected: () => ws && ws.readyState === WebSocket.OPEN,
+      on(evt, cb)  { (subs[evt] = subs[evt] || []).push(cb); },
+      off(evt, cb) { subs[evt] = (subs[evt] || []).filter(f => f !== cb); },
+    };
+
+    document.getElementById('connect').addEventListener('click', () => connect());
+
+    // QWebChannel bridge (no-op if not embedded)
+    if (window.qt && window.qt.webChannelTransport) {
+      const s = document.createElement('script');
+      s.src = 'qrc:///qtwebchannel/qwebchannel.js';
+      s.onload = () => new QWebChannel(qt.webChannelTransport, ch => { window._bridge = ch.objects.bridge; });
+      document.head.appendChild(s);
+    }
+
+    v.addEventListener('urdf-processed', () => {
+      // Dolly camera toward the orbit target so the model fills more of the
+      // viewport. OrbitControls clamps to [minDistance, maxDistance].
+      if (Number.isFinite(cfg.zoom) && cfg.zoom > 0 && v.camera && v.orbit) {
+        const target = v.orbit.target;
+        const dir = v.camera.position.clone().sub(target).normalize();
+        v.camera.position.copy(target).add(dir.multiplyScalar(cfg.zoom));
+        v.orbit.update();
+        v.redraw && v.redraw();
+      }
+      if (cfg.autoconnect && cfg.host) connect();
+    }, { once: true });
+  })();
+  </script>
+</body>
+</html>

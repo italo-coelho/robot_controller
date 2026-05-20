@@ -250,9 +250,14 @@ Rectangle {
             JogToggleButton {
                 onClicked: jogControlPopup.visible ? jogControlPopup.hide() : jogControlPopup.show()
             }
+
+            ThreeDToggleButton {
+                onClicked: robotViewerPopup.visible ? robotViewerPopup.hide() : robotViewerPopup.show()
+            }
         }
 
         JogControlPopup { id: jogControlPopup }
+        RobotViewerPopup { id: robotViewerPopup }
 
         // ── Row 2: search · DB picker · New Point — wraps on narrow widths ──
         Flow {

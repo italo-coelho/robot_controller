@@ -1,6 +1,9 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import QtWebEngine 1.10
+import Qt5Compat.GraphicalEffects
+import "../molecules"
 
 Rectangle {
     id: sidebar
@@ -26,15 +29,59 @@ Rectangle {
         }
     }
 
+    // Hierarchical nav. Items without a `page` are dropdown headers; their
+    // `children` render indented below when expanded.
     readonly property var navModel: [
-        { label: "Points",  page: "Positions"    },
-        { label: "Systems", page: "Equipamentos" }
+        { label: "Points",       page: "Positions"    },
+        { label: "Trajectories", page: "Trajectories" },
+        { label: "Systems",      page: "",            children: [
+            { label: "Control",       page: "Equipamentos"  },
+            { label: "Configuration", page: "Configuration" }
+        ]}
     ]
+
+    // label -> bool. Tracks which dropdown headers are user-expanded.
+    property var expanded: ({})
+
+    function _toggleExpanded(label) {
+        let m = {}
+        for (let k in expanded) m[k] = expanded[k]
+        m[label] = !m[label]
+        expanded = m
+    }
+
+    // True when the item or any descendant is the current page.
+    function _isItemActive(item) {
+        if (item.page && sidebar.currentPage === item.page) return true
+        if (item.children) {
+            for (let i = 0; i < item.children.length; ++i)
+                if (_isItemActive(item.children[i])) return true
+        }
+        return false
+    }
+
+    function _isHeaderExpanded(item) {
+        return !!expanded[item.label] || _isItemActive(item)
+    }
+
+    // Flatten leaves (items that have a page) for the compact horizontal row.
+    function _flatLeaves(items) {
+        let out = []
+        for (let i = 0; i < items.length; ++i) {
+            const it = items[i]
+            if (it.page) out.push(it)
+            if (it.children) out = out.concat(_flatLeaves(it.children))
+        }
+        return out
+    }
+
+    readonly property var _compactItems: _flatLeaves(navModel)
 
     // ── Wide / vertical layout ────────────────────────────────────────────
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 20
+        anchors.bottomMargin: sidebar.compact ? 20 : (robotViewerFrame.height + 32)
         spacing: 20
         visible: !sidebar.compact
 
@@ -80,35 +127,90 @@ Rectangle {
 
         Repeater {
             model: sidebar.navModel
-            delegate: Rectangle {
-                width: parent.width
-                height: 44
-                radius: 8
-                color: sidebar.currentPage === modelData.page ? "#2196f3" : "transparent"
+            delegate: ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 6
 
-                Text {
-                    text: modelData.label
-                    color: "white"
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.left: parent.left
-                    anchors.leftMargin: 12
-                    font.pixelSize: 16
+                NavButton {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 48
+                    label: modelData.label
+                    isCurrent: modelData.page
+                               ? sidebar.currentPage === modelData.page
+                               : sidebar._isItemActive(modelData)
+                    showChevron: !!modelData.children
+                    expanded: sidebar._isHeaderExpanded(modelData)
+                    onClicked: {
+                        if (modelData.children && !modelData.page) {
+                            sidebar._toggleExpanded(modelData.label)
+                        } else {
+                            sidebar.currentPage = modelData.page
+                            sidebar.pageSelected(modelData.page)
+                        }
+                    }
                 }
 
-                MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    onEntered:  if (sidebar.currentPage !== modelData.page) parent.color = "#1a8fe8"
-                    onExited:   parent.color = sidebar.currentPage === modelData.page ? "#2196f3" : "transparent"
-                    onClicked: {
-                        sidebar.currentPage = modelData.page
-                        sidebar.pageSelected(modelData.page)
+                Repeater {
+                    model: sidebar._isHeaderExpanded(modelData) && modelData.children
+                           ? modelData.children
+                           : []
+                    delegate: NavButton {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 38
+                        isSubItem: true
+                        label: modelData.label
+                        isCurrent: sidebar.currentPage === modelData.page
+                        onClicked: {
+                            sidebar.currentPage = modelData.page
+                            sidebar.pageSelected(modelData.page)
+                        }
                     }
                 }
             }
         }
 
         Item { Layout.fillHeight: true }
+    }
+
+    // ── 3D robot viewer (wide layout only) ────────────────────────────────
+    // Anchored directly to the sidebar so 90% of the sidebar's full width is
+    // honored regardless of the ColumnLayout's inner margins. WebEngineView
+    // bypasses scenegraph clipping, so corners are rounded via an OpacityMask
+    // layer effect.
+    Item {
+        id: robotViewerFrame
+        visible: !sidebar.compact
+        width: Math.round(sidebar.width * 0.9)
+        height: width
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 20
+        anchors.horizontalCenter: parent.horizontalCenter
+
+        WebEngineView {
+            id: robotViewerWeb
+            anchors.fill: parent
+            url: typeof robotViewerUrl !== "undefined" ? robotViewerUrl : ""
+            backgroundColor: "transparent"
+            layer.enabled: true
+            layer.smooth: true
+            layer.effect: OpacityMask {
+                maskSource: Rectangle {
+                    width: robotViewerWeb.width
+                    height: robotViewerWeb.height
+                    radius: 16
+                }
+            }
+        }
+
+        // Dark-blue rounded border traced on top of the masked WebView.
+        Rectangle {
+            anchors.fill: parent
+            color: "transparent"
+            radius: 16
+            border.color: "#0b3d91"
+            border.width: 4
+            antialiasing: true
+        }
     }
 
     // ── Compact / horizontal layout (portrait or narrow widths) ───────────
@@ -154,37 +256,15 @@ Rectangle {
         Item { Layout.fillWidth: true }
 
         Repeater {
-            model: sidebar.navModel
-            delegate: Rectangle {
-                id: navPill
-                Layout.preferredWidth: navText.implicitWidth + 24
-                Layout.preferredHeight: 32
+            model: sidebar._compactItems
+            delegate: NavButton {
                 Layout.alignment: Qt.AlignVCenter
-                radius: 16
-                color: {
-                    if (sidebar.currentPage === modelData.page) return "#2196f3"
-                    return pillMouse.containsMouse ? "#1a8fe8" : "transparent"
-                }
-                border.color: "#2196f3"
-                border.width: 1
-
-                Text {
-                    id: navText
-                    anchors.centerIn: parent
-                    text: modelData.label
-                    color: "white"
-                    font.pixelSize: 14
-                }
-
-                MouseArea {
-                    id: pillMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        sidebar.currentPage = modelData.page
-                        sidebar.pageSelected(modelData.page)
-                    }
+                pill: true
+                label: modelData.label
+                isCurrent: sidebar.currentPage === modelData.page
+                onClicked: {
+                    sidebar.currentPage = modelData.page
+                    sidebar.pageSelected(modelData.page)
                 }
             }
         }

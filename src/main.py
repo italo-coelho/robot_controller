@@ -1,12 +1,24 @@
 from pathlib import Path
+from functools import partial
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+import threading
+
 from PySide6.QtCore import QUrl, QSettings, QCoreApplication
 from PySide6.QtWidgets import QApplication
 from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtWebEngineQuick import QtWebEngineQuick
 from controllers.position_controller import PositionController
 from utils.robot_singleton import RobotSingletonRCP
 from db.db_manager import DB_Manager
 from PySide6.QtGui import QIcon
 import sys
+
+
+def _start_robot_viewer_server(directory: Path) -> ThreadingHTTPServer:
+    handler = partial(SimpleHTTPRequestHandler, directory=str(directory))
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    return httpd
 
 
 # Locate bundled resources whether running from source or from a PyInstaller
@@ -49,10 +61,30 @@ def main() -> None:
             "com.robotine.controller"
         )
 
+    # QtWebEngine in QML requires initialization before QApplication is built.
+    QtWebEngineQuick.initialize()
+
     app = QApplication(sys.argv)
     engine = QQmlApplicationEngine()
 
     engine.addImportPath(str(RESOURCE_DIR / "qml"))
+
+    # Serve robot_viewer over HTTP — QtWebEngine refuses fetch/XHR on file://,
+    # so the URDF + Collada meshes can only load from a real origin.
+    viewer_dir = RESOURCE_DIR / "robot_viewer"
+    viewer_httpd = _start_robot_viewer_server(viewer_dir)
+    viewer_port = viewer_httpd.server_address[1]
+    viewer_url = (
+        f"http://127.0.0.1:{viewer_port}/viewer.html"
+        f"?hud=0&autoconnect=1&host=192.168.167.199:9999"
+    )
+    engine.rootContext().setContextProperty("robotViewerUrl", viewer_url)
+
+    def _stop_viewer_server() -> None:
+        viewer_httpd.shutdown()
+        viewer_httpd.server_close()
+
+    app.aboutToQuit.connect(_stop_viewer_server)
 
     # Use .ico cross-platform at runtime: Qt's .icns handler crashes
     # setWindowIcon on macOS in this Qt build. The .icns is kept in
